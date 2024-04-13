@@ -1,0 +1,265 @@
+---
+title: "zadanie_2_Branny_Bopko"
+output: html_document
+date: "2024-04-13"
+---
+
+```
+Diabetes_binary : you have diabetes (0,1)
+
+HighBP : Adults who have been told they have high blood pressure by a doctor, nurse, or other health professional (0,1)
+
+HighChol : Have you EVER been told by a doctor, nurse or other health professional that your blood cholesterol is high? (0,1)
+
+CholCheck : Cholesterol check within past five years (0,1)
+
+BMI : Body Mass Index (BMI)
+
+Smoker : Have you smoked at least 100 cigarettes in your entire life? [Note: 5 packs = 100 cigarettes] (0,1)
+
+Stroke : (Ever told) you had a stroke. (0,1)
+
+HeartDiseaseorAttack : Respondents that have ever reported having coronary heart disease (CHD) or myocardial infarction (MI) (0,1)
+
+PhysActivity : Adults who reported doing physical activity or exercise during the past 30 days other than their regular job (0,1)
+
+Fruits : Consume Fruit 1 or more times per day (0,1)
+
+Veggies : Consume Vegetables 1 or more times per day (0,1)
+
+HvyAlcoholConsump : Heavy drinkers (adult men having more than 14 drinks per week and adult women having more than 7 drinks per week)(0,1)
+
+AnyHealthcare : Do you have any kind of health care coverage, including health insurance, prepaid plans such as HMOs, or government plans such as Medicare, or Indian Health Service? (0,1)
+
+NoDocbcCost : Was there a time in the past 12 months when you needed to see a doctor but could not because of cost? (0,1)
+
+GenHlth : Would you say that in general your health is: rate (1 ~ 5)
+
+MentHlth : Now thinking about your mental health, which includes stress, depression, and problems with emotions, for how many days during the past 30 days was your mental health not good? (0 ~ 30)
+
+PhysHlth : Now thinking about your physical health, which includes physical illness and injury, for how many days during the past 30 days was your physical health not good? (0 ~ 30)
+
+DiffWalk : Do you have serious difficulty walking or climbing stairs? (0,1)
+
+Sex : Indicate sex of respondent (0,1) (Female or Male)
+
+Age : Fourteen-level age category (1 ~ 14)
+
+Education : What is the highest grade or year of school you completed? (1 ~ 6)
+
+Income : Is your annual household income from all sources: (If respondent refuses at any income level, code "Refused.") (1 ~ 8)
+```
+
+
+
+
+```{r}
+
+
+library(tidyverse)
+library(magrittr) 
+library(data.table) 
+library(caret)
+library(ggplot2)
+library(readxl)
+library(cowplot)
+library(patchwork)
+```
+```{r}
+setwd("./") 
+list.files() 
+```
+
+## R Markdown
+```{r}
+data <- read.csv("diabetes_012_health_indicators_BRFSS2015.csv")
+names(data)
+head(data)
+```
+# Popis dát
+```{r}
+summary(data)
+cat("Colnum : ", ncol(data),"\n")
+cat("Rownum : ",nrow(data))
+```
+
+
+```{r}
+
+View(data)
+```
+
+```{r}
+number_of_uniq_data <- sapply(data, function(x) length(unique(x)))
+```
+
+
+```{r}
+cat("Unique values in dataset:\n")
+print(number_of_uniq_data)
+print("####")
+print("Diabetes values :")
+table(data$Diabetes_012, useNA = 'always')
+
+
+```
+Vidíme, že máme veľa binárnych hodnôt. Hodnoty, ktorými budeme pracovať pri vytáraní modelu budeme musieť enkódovať.
+Náš label hodnota Diabetes_012 disponuje s 3 hodnotami. 0 - no diabetes 1 - prediabetes 2 - diabetes .
+
+```{r}
+sapply(data, class)
+table(sapply(data, class))
+sum(is.na(data))
+
+```
+Data obsahuju len numericke hodnoty a ziadne chýbajúce hodnoty.
+
+```{r}
+cat("Number of rows: ", nrow(data),"\n")
+cat("Number of duplicates")
+num_duplicates <- sum(duplicated(data))
+print(num_duplicates)
+
+# Remove duplicated rows
+data <- data[!duplicated(data), ]
+
+# Get the number of rows after deletion of duplicates
+num_rows_after_deletion <- nrow(data_unique)
+cat("Number of rows: ", nrow(data),"\n")
+
+```
+
+
+
+```{r}
+data <- data %>% 
+  mutate(
+    Diabetes = case_when(
+      Diabetes_012 %in% c(1, 2) ~ 1,
+      Diabetes_012 == 0 ~ 0
+    )
+  ) %>%
+  select(-Diabetes_012)
+```
+
+
+```{r}
+print("Diabetes values :")
+table(data$Diabetes, useNA = 'always')
+```
+Mergovali sme hodnoty 1 a 2, a tych ktori maju 1 (prediabetes) budeme brat ako keby uz mali daibete (2).
+
+```{r}
+
+numeric_columns <- sapply(data, is.numeric)  # Identify numeric columns
+non_binary_numeric_columns <- numeric_columns & !apply(data, 2, function(x) all(x %in% c(0, 1)))
+non_bin_names <- names(non_binary_numeric_columns[non_binary_numeric_columns])
+
+print_histograms <- function(data, columns) {
+  for (col_name in columns) {
+    
+    if (col_name == "BMI"){
+      p <- ggplot(data, aes(x = BMI)) + 
+      geom_histogram(fill = "skyblue", color = "black") +
+      ggtitle("Distribution of BMI") + 
+      xlab("BMI") + 
+      ylab("Count")
+        print(p)
+    }
+    else{
+    data[[col_name]] <- factor(data[[col_name]])
+    p <- ggplot(data, aes_string(x = col_name)) +
+      geom_bar(fill = "skyblue", color = "black") +
+      scale_x_discrete(drop = FALSE) +  # Ensure all unique values are shown on x-axis
+      theme_minimal() +
+      ggtitle(paste("Distribution of", col_name)) +
+      xlab(col_name) +
+      ylab("Count")
+    print(p)
+    }
+  }
+}
+
+
+
+print_histograms(data, non_bin_names)
+
+```
+
+```{r}
+
+```
+
+
+
+```{r}
+
+for (col_name in non_bin_names){
+  p <- ggplot(data, aes_string(y = col_name)) + 
+      geom_boxplot(fill = "lightblue") +
+      ggtitle(paste("Distribution of", col_name)) + 
+      ylab(col_name) + xlab("")
+  print(p)
+
+}
+
+```
+```{r}
+handle_outliers <- function(data, columns, sensitivity) {
+  na_counts <- setNames(numeric(length(columns)), columns)  # Initialize a vector to hold NA counts for each column
+  
+  for (col in columns) {
+    # Count NAs before handling outliers
+    na_count_before <- sum(is.na(data[[col]]))
+    
+    # Calculate quartiles and IQR
+    q1 <- quantile(data[[col]], 0.25, na.rm = TRUE)
+    q3 <- quantile(data[[col]], 0.75, na.rm = TRUE)
+    iqr <- q3 - q1
+    
+    # Define upper and lower bounds for outliers
+    upper_bound <- q3 + iqr*sensitivity
+    lower_bound <- q1 - iqr*sensitivity
+    
+    print(paste("Upper bound for", col, ":", upper_bound))
+    print(paste("Lower bound for", col, ":", lower_bound))
+    # Replace outliers with NA
+    data[[col]] <- ifelse(data[[col]] < lower_bound | data[[col]] > upper_bound, NA, data[[col]])
+    
+    # Count NAs after handling outliers
+    na_count_after <- sum(is.na(data[[col]]))
+    
+    # Calculate the number of NAs added
+    na_counts[col] <- na_count_after - na_count_before
+    
+    # Print the number of NAs added for the current column
+    cat("NAs added in", col, ":", na_counts[col], "\n")
+  }
+      data <- na.omit(data)
+
+  # Return the cleaned data and the NA counts
+  return(data)
+}
+```
+
+```{r}
+non_binary_columns <- function(data) {
+  non_binary_cols <- character(0)  # Initialize an empty vector to store non-binary column names
+  for (col in names(data)) {
+    unique_vals <- unique(data[[col]])
+    if (length(unique_vals) > 2) {
+      non_binary_cols <- c(non_binary_cols, col)  # Add column name to the list of non-binary columns
+    }
+  }
+  return(non_binary_cols)
+}
+
+# Usage:
+nonbinarycolumns <- non_binary_columns(data)
+non_bin_names <- non_binary_columns(data)
+cat("Non binary columns : ",nonbinarycolumns)
+
+dataWithOutliers <- data
+data <- handle_outliers(data, nonbinarycolumns, 0.5)
+```
+
