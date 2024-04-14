@@ -55,7 +55,7 @@ Income : Is your annual household income from all sources: (If respondent refuse
 
 ```{r}
 
-
+library(reshape2)
 library(tidyverse)
 library(magrittr) 
 library(data.table) 
@@ -86,7 +86,7 @@ cat("Rownum : ",nrow(data))
 
 ```{r}
 
-View(data)
+#View(data)
 ```
 
 ```{r}
@@ -124,7 +124,6 @@ print(num_duplicates)
 data <- data[!duplicated(data), ]
 
 # Get the number of rows after deletion of duplicates
-num_rows_after_deletion <- nrow(data_unique)
 cat("Number of rows: ", nrow(data),"\n")
 
 ```
@@ -194,20 +193,41 @@ print_histograms(data, non_bin_names)
 
 ```{r}
 
-for (col_name in non_bin_names){
-  p <- ggplot(data, aes_string(y = col_name)) + 
-      geom_boxplot(fill = "lightblue") +
-      ggtitle(paste("Distribution of", col_name)) + 
-      ylab(col_name) + xlab("")
-  print(p)
+# Define the columns of interest
+columns_of_interest <- c('BMI', 'GenHlth', 'MentHlth', 'PhysHlth', 'Age', 'Education', 'Income')
 
+# Create a list to store individual boxplot plots
+plots <- list()
+
+# Loop through each column and create a boxplot
+for (i in 1:length(columns_of_interest)) {
+  col <- columns_of_interest[i]
+  p <- ggplot(data, aes_string(x = col)) +
+    geom_boxplot(fill = "skyblue", color = "black") +
+    ggtitle(paste("Distribution of", col)) +
+    theme_minimal(base_size = 8) +  # Set base font size
+    theme(axis.text.x = element_text(size = 6),  # Set x-axis text size
+          axis.text.y = element_text(size = 6)) +  # Set y-axis text size
+    xlab(col) +
+    ylab("Value")
+  plots <- c(plots, list(p))  # Append each plot to the list
 }
 
+# Combine plots into a single plot grid
+combined_plot <- cowplot::plot_grid(plotlist = plots, nrow = 4, ncol = 2)
+
+# Adjust the size of the combined plot
+ggsave("combined_plot.png", combined_plot, width = 10, height = 10)
+
+# Print the combined plot
+print(combined_plot)
+
 ```
+Na základe týchto grafov, žiadné stĺpce neobsahujú hodnoty, ktoré by boli nižšie alebo vačšie ako zadefiované extrémy týchto stlpcov. 
 ```{r}
 handle_outliers <- function(data, columns, sensitivity) {
   na_counts <- setNames(numeric(length(columns)), columns)  # Initialize a vector to hold NA counts for each column
-  
+  totalNumOfOutliers = 0
   for (col in columns) {
     # Count NAs before handling outliers
     na_count_before <- sum(is.na(data[[col]]))
@@ -231,12 +251,12 @@ handle_outliers <- function(data, columns, sensitivity) {
     
     # Calculate the number of NAs added
     na_counts[col] <- na_count_after - na_count_before
-    
+    totalNumOfOutliers = totalNumOfOutliers + na_counts
     # Print the number of NAs added for the current column
     cat("NAs added in", col, ":", na_counts[col], "\n")
   }
       data <- na.omit(data)
-
+  cat("Total number of outliers detected : ", totalNumOfOutliers)
   # Return the cleaned data and the NA counts
   return(data)
 }
@@ -263,3 +283,98 @@ dataWithOutliers <- data
 data <- handle_outliers(data, nonbinarycolumns, 0.5)
 ```
 
+```{r}
+# Compute correlation matrix
+correlation_matrix <- cor(data)
+
+# Convert correlation matrix to dataframe
+correlation_df <- as.data.frame(correlation_matrix)
+correlation_df$row <- rownames(correlation_matrix)
+
+# Melt dataframe to long format
+correlation_df_long <- melt(correlation_df, id.vars = "row")
+
+# Set the size of the plot
+options(repr.plot.width = 10, repr.plot.height = 8)
+
+# Plot heatmap
+ggplot(data = correlation_df_long, aes(x = row, y = variable, fill = value)) +
+  geom_tile(color = "white") + # Adjust width and height of cells
+  geom_text(aes(label = round(value, 2)), color = "black", size = 2.2) + # Adjust text size
+  scale_fill_gradient2(low = "blue", high = "red", na.value = "white", limits = c(-1, 1), name = "Correlation") +
+  theme_minimal() +
+  labs(title = "Correlation of Features") +
+```
+
+
+```{r}
+theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
+```
+
+```{r}
+
+colnames(data)
+cols <- c('HighBP', 'HighChol', 'CholCheck', 'Smoker',
+          'Stroke', 'HeartDiseaseorAttack', 'PhysActivity', 'Veggies',
+          'HvyAlcoholConsump', 'AnyHealthcare', 'NoDocbcCost', 'DiffWalk')
+
+plots <- list()
+
+for (col in cols) {
+  
+  # Create bar plot
+  plot <- data %>%
+    mutate(Diabetes = factor(Diabetes)) %>% # Convert Diabetes to factor
+    group_by(Diabetes, !!sym(col)) %>%
+    summarise(Count = n()) %>%
+    ggplot(aes(fill = Diabetes, y = Count, x = !!sym(col))) + 
+    geom_bar(position = 'stack', stat = 'identity') +
+    theme_minimal() + 
+    labs(x = col, y = "Count", title = 'Diabetes in other columns') +
+    theme(plot.title = element_text(hjust = 0.5, size = 20, face = 'bold')) +
+    scale_fill_manual('Diabetes', values = c('coral2', 'steelblue'))
+  
+  
+  # Store the plot
+  plots[[col]] <- plot
+}
+
+# Print the plots
+for (i in seq_along(plots)) {
+  print(plots[[i]])
+}
+
+
+```
+
+Na t7chtoch grafoch vidíme ditribúciu Diabete medzi ostatnými binárnými hodnotami.
+
+
+```{r}
+barplot <- ggplot(data, aes(x = factor(Diabetes), fill = factor(Diabetes))) +
+  geom_bar() +
+  scale_fill_manual(values = c("blue", "red")) +
+  labs(x = "Diabetes", y = "Count", title = "Distribution of Diabetes") +
+  theme_minimal()
+
+diabetes_percentage <- data %>%
+  group_by(Diabetes) %>%
+  summarise(Count = n()) %>%
+  mutate(Percentage = prop.table(Count) * 100)
+
+# Create pie chart
+piechart <- ggplot(diabetes_percentage, aes(x = "", y = Percentage, fill = factor(Diabetes))) +
+  geom_bar(stat = "identity", width = 1) +
+  geom_text(aes(label = paste0(round(Percentage, 1), "%")), position = position_stack(vjust = 0.5)) +  # Add percentage labels
+  coord_polar(theta = "y") +
+  labs(fill = "Diabetes", title = "Percentage Distribution of Diabetes") +
+  theme_void() +
+  theme(legend.position = "bottom")  # Move legend to the bottom
+
+# Print pie chart
+print(piechart)
+```
+
+
+
+```
