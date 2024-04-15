@@ -64,6 +64,8 @@ library(ggplot2)
 library(readxl)
 library(cowplot)
 library(patchwork)
+library(polycor)
+library(psych)
 ```
 ```{r}
 setwd("./") 
@@ -152,7 +154,7 @@ Mergovali sme hodnoty 1 a 2, a tych ktori maju 1 (prediabetes) budeme brat ako k
 
 numeric_columns <- sapply(data, is.numeric)  # Identify numeric columns
 non_binary_numeric_columns <- numeric_columns & !apply(data, 2, function(x) all(x %in% c(0, 1)))
-non_bin_names <- names(non_binary_numeric_columns[non_binary_numeric_columns])
+nonbinarycolumns <- names(non_binary_numeric_columns[non_binary_numeric_columns])
 
 print_histograms <- function(data, columns) {
   for (col_name in columns) {
@@ -181,7 +183,7 @@ print_histograms <- function(data, columns) {
 
 
 
-print_histograms(data, non_bin_names)
+print_histograms(data, nonbinarycolumns)
 
 ```
 
@@ -224,6 +226,8 @@ print(combined_plot)
 
 ```
 Na základe týchto grafov, žiadné stĺpce neobsahujú hodnoty, ktoré by boli nižšie alebo vačšie ako zadefiované extrémy týchto stlpcov. 
+
+
 ```{r}
 handle_outliers <- function(data, columns, sensitivity) {
   na_counts <- setNames(numeric(length(columns)), columns)  # Initialize a vector to hold NA counts for each column
@@ -263,6 +267,7 @@ handle_outliers <- function(data, columns, sensitivity) {
 ```
 
 ```{r}
+# Function returns names of non binary columns
 non_binary_columns <- function(data) {
   non_binary_cols <- character(0)  # Initialize an empty vector to store non-binary column names
   for (col in names(data)) {
@@ -276,7 +281,7 @@ non_binary_columns <- function(data) {
 
 # Usage:
 nonbinarycolumns <- non_binary_columns(data)
-non_bin_names <- non_binary_columns(data)
+nonbinarycolumns <- non_binary_columns(data)
 cat("Non binary columns : ",nonbinarycolumns)
 
 dataWithOutliers <- data
@@ -284,8 +289,8 @@ data <- handle_outliers(data, nonbinarycolumns, 0.5)
 ```
 
 ```{r}
-# Compute correlation matrix
-correlation_matrix <- cor(data)
+# Compute correlation matrix for non-binary columns
+correlation_matrix <- cor(data[, nonbinarycolumns])
 
 # Convert correlation matrix to dataframe
 correlation_df <- as.data.frame(correlation_matrix)
@@ -299,28 +304,71 @@ options(repr.plot.width = 10, repr.plot.height = 8)
 
 # Plot heatmap
 ggplot(data = correlation_df_long, aes(x = row, y = variable, fill = value)) +
-  geom_tile(color = "white") + # Adjust width and height of cells
-  geom_text(aes(label = round(value, 2)), color = "black", size = 2.2) + # Adjust text size
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(value, 2)), color = "black", size = 3) +
   scale_fill_gradient2(low = "blue", high = "red", na.value = "white", limits = c(-1, 1), name = "Correlation") +
   theme_minimal() +
-  labs(title = "Correlation of Features") +
+  labs(title = "Correlation of Features")
 ```
+Na grafe je vidno, že viacere nebinárne hodnoty sa korelujú. Dokonca máme aj negatívne korlácie.
+Z tychto hodnot nedozvieme vsetko, ale napr. mozeme mat predpoklad, ze cim starsi je clovek, tym menej zaraba, alebo cim viac zaraba clovek, tym ma vacsie vzdelanie.
+
+Klucove info z tejto tabulky su napr:, age, GenHlth, BMI, MentlHlth, PhysHlth
 
 
+
+Vypocitame korelácie medzi kategorickými hodnotami, ktoré rozdelujeme na nominalne a ordinalne.
 ```{r}
-theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for better readability
-```
+ordinal_categorical_columns <- c("Education", "Income", "GenHlth")
 
-```{r}
-
-colnames(data)
-cols <- c('HighBP', 'HighChol', 'CholCheck', 'Smoker',
+binary_cols <- c('HighBP', 'HighChol', 'CholCheck', 'Smoker',
           'Stroke', 'HeartDiseaseorAttack', 'PhysActivity', 'Veggies',
-          'HvyAlcoholConsump', 'AnyHealthcare', 'NoDocbcCost', 'DiffWalk')
+          'HvyAlcoholConsump', 'AnyHealthcare', 'NoDocbcCost', 'DiffWalk', 'Diabetes')
 
+all_categorical_values <-c('HighBP', 'HighChol', 'CholCheck', 'Smoker',
+          'Stroke', 'HeartDiseaseorAttack', 'PhysActivity', 'Veggies',
+          'HvyAlcoholConsump', 'AnyHealthcare', 'NoDocbcCost', 'DiffWalk', 'Diabetes', "Education", "Income", "GenHlth")
+
+binary_data <- data[, binary_cols]
+ordinal_data <- data[, ordinal_categorical_columns]
+
+# Calculate Tetrachoric correlation for binary columns
+tetrachoric_corr <- tetrachoric(binary_data)
+
+# Print the results
+print("Tetrachoric Correlation for Binary Columns:")
+print(tetrachoric_corr)
+
+```
+Vypocitali sme korelacie medzi nominalnymi kategorickými hodnotami. Tieto výsledky nám pomozu si vytvorit model, kedze vidíme vztahy medzi hodnotou Diabetes co chceme predikovat, a ostatnými hodnotami.
+Napr. HighBP a Diabetes maju mierne velku korelcáie, preto si predpokladáme, že vyssi krvný tlak a srdcové ochorenia znamenaju vacsiu sancu na diabetes.
+
+Na druhej strane, fyzická aktivita, konzumovanie zelenín a absolvovanie preventívnych návštev lekára - čiže keď sa nenastala taká situácia, že doktor nebol navštevovaný, ked by mal byt - NoDocbcCost, znižujú šancu Diabetes. Prekvapivo aj konzumácia alkoholu.
+
+
+Klucove info: HighBP, HighChl, Chlch, HrtDa,, HvyAc, Stroke, AnyHL
+```{r}
+# Calculate Polychoric correlation for ordinal columns
+polychoric_corr <- polychoric(ordinal_data)
+
+print("###########")
+
+print("Polychoric Correlation for Ordinal Columns:")
+print(polychoric_corr)
+```
+
+
+
+
+```{r}
+print(nonbinarycolumns)
 plots <- list()
 
-for (col in cols) {
+all_categorical_values_without_diabetes <-c('HighBP', 'HighChol', 'CholCheck', 'Smoker',
+          'Stroke', 'HeartDiseaseorAttack', 'PhysActivity', 'Veggies',
+          'HvyAlcoholConsump', 'AnyHealthcare', 'NoDocbcCost', 'DiffWalk', "Education", "Income", "GenHlth")
+# Create stacked barplots for categorical values and Diabetes
+for (col in all_categorical_values_without_diabetes) {
   
   # Create bar plot
   plot <- data %>%
@@ -330,32 +378,28 @@ for (col in cols) {
     ggplot(aes(fill = Diabetes, y = Count, x = !!sym(col))) + 
     geom_bar(position = 'stack', stat = 'identity') +
     theme_minimal() + 
-    labs(x = col, y = "Count", title = 'Diabetes in other columns') +
-    theme(plot.title = element_text(hjust = 0.5, size = 20, face = 'bold')) +
+    labs(x = col, y = "Count", title = paste("Distribution of Diabetes in ", col)) +
+    theme(plot.title = element_text(hjust = 0.5, size = 12, face = 'bold')) +
     scale_fill_manual('Diabetes', values = c('coral2', 'steelblue'))
   
   
-  # Store the plot
-  plots[[col]] <- plot
-}
+   # Store the plot
+   plots[[col]] <- plot
+ }
 
-# Print the plots
-for (i in seq_along(plots)) {
+ # Print the plots
+ for (i in seq_along(plots)) {
   print(plots[[i]])
-}
+ }
 
 
 ```
 
-Na t7chtoch grafoch vidíme ditribúciu Diabete medzi ostatnými binárnými hodnotami.
+Na tychto grafoch vidíme ditribúciu Diabetes medzi ostatnými binárnými hodnotami. O4ividne sú viac diabetikov medzi jednotlivcami, ktorí maju vysoky cholesterol, krvný tlak, alebo medzi tými ktorí uz mali stroke
 
 
 ```{r}
-barplot <- ggplot(data, aes(x = factor(Diabetes), fill = factor(Diabetes))) +
-  geom_bar() +
-  scale_fill_manual(values = c("blue", "red")) +
-  labs(x = "Diabetes", y = "Count", title = "Distribution of Diabetes") +
-  theme_minimal()
+
 
 diabetes_percentage <- data %>%
   group_by(Diabetes) %>%
@@ -365,7 +409,7 @@ diabetes_percentage <- data %>%
 # Create pie chart
 piechart <- ggplot(diabetes_percentage, aes(x = "", y = Percentage, fill = factor(Diabetes))) +
   geom_bar(stat = "identity", width = 1) +
-  geom_text(aes(label = paste0(round(Percentage, 1), "%")), position = position_stack(vjust = 0.5)) +  # Add percentage labels
+  geom_text(aes(label = paste(round(Percentage, 1), "%")), position = position_stack(vjust = 0.5)) +  # Add percentage labels
   coord_polar(theta = "y") +
   labs(fill = "Diabetes", title = "Percentage Distribution of Diabetes") +
   theme_void() +
@@ -373,8 +417,4 @@ piechart <- ggplot(diabetes_percentage, aes(x = "", y = Percentage, fill = facto
 
 # Print pie chart
 print(piechart)
-```
-
-
-
 ```
