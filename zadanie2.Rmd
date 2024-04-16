@@ -586,7 +586,8 @@ set.seed(123)
 # Split the dataset into training (80%) and testing (20%) sets
 train_indices <- sample(1:nrow(data), 0.8 * nrow(data))
 train_data <- data[train_indices, ]
-print(train_data)
+
+
 test_data <- data[-train_indices, ]
 print(colnames(train_data))
 # Prepare the training data
@@ -610,7 +611,6 @@ coef_lasso <- coef(fit_lasso, s = lambda_optimal)
 # Make predictions on the testing data
 predictions <- predict(fit_lasso, newx = as.matrix(x_test), s = lambda_optimal)
 
-# Evaluate the model (optional)
 # You can use metrics such as mean squared error (MSE), R-squared, etc.
 mse <- mean((predictions - y_test)^2)
 rsquared <- cor(predictions, y_test)^2
@@ -620,4 +620,6 @@ cat("Mean Squared Error (MSE):", mse, "\n")
 cat("R-squared:", rsquared, "\n")
 
 ```
+Dostali sme skoro rovnake vysledky ako s linearnou regresiou. R squared je 0.076 co znamena ze prediktory su zodpovedne za 7.6 % variancie BMI, co je relativne malo. 
 
+Priemern8 chyba predikcie a realnej hodnoty je  14.64678., co je vysoke. Takyto rozdiel v BMI vyrazne zmeni stav cloveka.
