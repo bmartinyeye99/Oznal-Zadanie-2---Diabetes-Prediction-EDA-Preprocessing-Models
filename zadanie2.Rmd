@@ -54,7 +54,7 @@ Income : Is your annual household income from all sources: (If respondent refuse
 
 
 ```{r}
-
+library(leaps)
 library(reshape2)
 library(tidyverse)
 library(magrittr) 
@@ -66,6 +66,9 @@ library(cowplot)
 library(patchwork)
 library(polycor)
 library(psych)
+library(caret)
+library(caretEnsemble)
+library(glmnet)
 ```
 ```{r}
 setwd("./") 
@@ -288,29 +291,53 @@ dataWithOutliers <- data
 data <- handle_outliers(data, nonbinarycolumns, 0.5)
 ```
 
+
+
 ```{r}
+library(ggplot2)
+library(reshape2)
+
+# Function to generate heatmap for correlation matrix
+generate_correlation_heatmap <- function(correlation_matrix, title) {
+  numsize = 1.9
+  if ( title == "Correlation of Features - Non-Binary Columns")
+    numsize = 2.5
+  else
+    numsize = 1.9
+  # Convert correlation matrix to dataframe
+  correlation_df <- as.data.frame(correlation_matrix)
+  correlation_df$row <- rownames(correlation_matrix)
+
+  # Melt dataframe to long format
+  correlation_df_long <- melt(correlation_df, id.vars = "row")
+
+  # Set the size of the plot
+  options(repr.plot.width = 10, repr.plot.height = 8)
+
+  # Plot heatmap
+  ggplot(data = correlation_df_long, aes(x = row, y = variable, fill = value)) +
+    geom_tile(color = "white") +
+    geom_text(aes(label = round(value, 2)), color = "black", size = numsize) +
+    scale_fill_gradient2(low = "blue", high = "red", na.value = "white", limits = c(-1, 1), name = "Correlation") +
+    theme_minimal() +
+    labs(title = title) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels
+}
+
+# Compute correlation matrix for the entire dataset
+correlation_matrix <- cor(data)
+
+# Generate heatmap for entire dataset
+generate_correlation_heatmap(correlation_matrix, "Correlation of Features - Entire Dataset")
+
 # Compute correlation matrix for non-binary columns
-correlation_matrix <- cor(data[, nonbinarycolumns])
+correlation_matrix_nonbinary <- cor(data[, nonbinarycolumns])
 
-# Convert correlation matrix to dataframe
-correlation_df <- as.data.frame(correlation_matrix)
-correlation_df$row <- rownames(correlation_matrix)
+# Generate heatmap for non-binary columns
+generate_correlation_heatmap(correlation_matrix_nonbinary, "Correlation of Features - Non-Binary Columns")
 
-# Melt dataframe to long format
-correlation_df_long <- melt(correlation_df, id.vars = "row")
-
-# Set the size of the plot
-options(repr.plot.width = 10, repr.plot.height = 8)
-
-# Plot heatmap
-ggplot(data = correlation_df_long, aes(x = row, y = variable, fill = value)) +
-  geom_tile(color = "white") +
-  geom_text(aes(label = round(value, 2)), color = "black", size = 3) +
-  scale_fill_gradient2(low = "blue", high = "red", na.value = "white", limits = c(-1, 1), name = "Correlation") +
-  theme_minimal() +
-  labs(title = "Correlation of Features")
 ```
-Na grafe je vidno, že viacere nebinárne hodnoty sa korelujú. Dokonca máme aj negatívne korlácie.
+Na grafe je vidno, že viacere  hodnoty sa korelujú. Dokonca máme aj negatívne korlácie.
 Z tychto hodnot nedozvieme vsetko, ale napr. mozeme mat predpoklad, ze cim starsi je clovek, tym menej zaraba, alebo cim viac zaraba clovek, tym ma vacsie vzdelanie.
 
 Klucove info z tejto tabulky su napr:, age, GenHlth, BMI, MentlHlth, PhysHlth
@@ -380,7 +407,7 @@ for (col in all_categorical_values_without_diabetes) {
     theme_minimal() + 
     labs(x = col, y = "Count", title = paste("Distribution of Diabetes in ", col)) +
     theme(plot.title = element_text(hjust = 0.5, size = 12, face = 'bold')) +
-    scale_fill_manual('Diabetes', values = c('coral2', 'steelblue'))
+    scale_fill_manual('Diabetes', values = c('lightblue', 'coral'))
   
   
    # Store the plot
@@ -391,9 +418,8 @@ for (col in all_categorical_values_without_diabetes) {
  for (i in seq_along(plots)) {
   print(plots[[i]])
  }
-
-
 ```
+
 
 Na tychto grafoch vidíme ditribúciu Diabetes medzi ostatnými binárnými hodnotami. O4ividne sú viac diabetikov medzi jednotlivcami, ktorí maju vysoky cholesterol, krvný tlak, alebo medzi tými ktorí uz mali stroke
 
@@ -418,3 +444,180 @@ piechart <- ggplot(diabetes_percentage, aes(x = "", y = Percentage, fill = facto
 # Print pie chart
 print(piechart)
 ```
+
+Okrem korelácie, pouzivame regsubsets aby sme nasli najlepsie predictory pre BMI
+```{r}
+# Perform best subset regression
+Best_Subset <- regsubsets(BMI ~ .,
+                          data = data,
+                          nbest = 1,      # 1 best model for each number of predictors
+                          nvmax = NULL,   # NULL for no limit on number of variables
+                          force.in = NULL, force.out = NULL,
+                          method = "exhaustive")
+
+# Summarize the results
+summary_best_subset <- summary(Best_Subset)
+
+# View the summary output
+summary_best_subset
+which.max(summary_best_subset$adjr2)
+summary_best_subset$which[21,]
+```
+<!-- Hviezdičky ( * ) v dolnej časti výstupu označujú, ktoré predikčné premenné patria do najlepšieho regresného modelu pre každý možný model s rôznym počtom predikčných premenných. -->
+
+
+<!-- Pre model s jednou prediktorovou premennou je najlepším regresným modelom model, v ktorom sa ako prediktorová premenná použije HighBP -->
+<!-- V prípade modelu s dvoma prediktorovými premennými sa najlepší regresný model vytvorí použitím Diabetes a HighBP ako prediktorových premenných. -->
+
+
+
+# Linear regression model
+```{r}
+model <- data %$% 
+  lm(BMI ~ Age + GenHlth + HighBP + Diabetes + Sex )
+
+summary(model)
+```
+Celkovo model naznačuje, že Age, General Health, High Blood Pressure, Diabetes, and Sex sú významnými prediktormi BMI. Model však vysvetľuje len malú časť rozptylu BMI (adjusted R-squared = 0.07293), čo naznačuje, že BMI môžu ovplyvňovať aj iné faktory, ktoré nie sú zahrnuté v modeli.
+
+Intercept: Priemerná hodnota BMI, keď sú všetky ostatné premenné nulové, je 26.70. Tento koeficient je štatisticky významný (p \< 0.05).
+
+-   Age: Za každú jednotku zvýšenia veku (Age) sa BMI zníži o -0.19, čo je štatisticky významné (p \< 0.05). Aj keď vplyv malý, je považovaný za štatisticky signifikantný.
+
+Ak má osoba vysoký krvný tlak (HighBP = 1), očakáva sa, že jej BMI bude v priemere vyšší približne o 1,337023 jednotky v porovnaní s osobou bez vysokého krvného tlaku (HighBP = 0), pričom sa kontrolujú ostatné premenné v modeli.
+
+
+
+Plottig reg lines for predictors
+```{r}
+ggplotRegression <- function(fit) {
+  require(ggplot2)
+  
+  predictors <- names(fit$model)[-1]  # Exclude the response variable
+  
+  plots <- list()
+  
+  for (predictor in predictors) {
+    plot <- ggplot(fit$model, aes_string(x = predictor, y = names(fit$model)[1])) + 
+      geom_point() +
+      stat_smooth(method = "lm", col = "red") +
+      labs(title = paste("Adj R2 =", signif(summary(fit)$adj.r.squared, 5),
+                         "Intercept =", signif(coef(fit)[1], 5),
+                         "Slope =", signif(coef(fit)[predictor], 5),
+                         "P =", signif(summary(fit)$coef[which(rownames(summary(fit)$coef) == predictor), "Pr(>|t|)"], 5)))
+    
+    plots[[predictor]] <- plot
+  }
+  
+  return(plots)
+}
+
+plots <- ggplotRegression(model)
+
+for (predictor in names(plots)) {
+  print(plots[[predictor]])
+}
+
+```
+Defining LASSO model
+```{r}
+# Define the control using a random forest selection function
+control <- rfeControl(functions = rfFuncs, # random forest
+                      method = "repeatedcv", # repeated cv
+                      repeats = 5, # number of repeats
+                      number = 10) # number of folds
+```
+
+```{r}
+library(randomForest)
+```
+
+
+RFE for feature selection, runs very long - dont know wether we have to use it 
+```{r}
+# # Features
+# x <- data %>%
+#   select(-BMI) %>%
+#   as.data.frame()
+# 
+# # Target variable
+# y <- data$BMI
+# 
+# # Training: 80%; Test: 20%
+# set.seed(2021)
+# inTrain <- createDataPartition(y, p = .80, list = FALSE)[,1]
+# 
+# x_train <- x[inTrain, ]
+# x_test  <- x[-inTrain, ]
+# 
+# y_train <- y[inTrain]
+# y_test  <- y[-inTrain]
+# 
+# # Define resampling control
+# control <- rfeControl(functions = rfFuncs, method = "cv", number = 5)
+# 
+# # Run RFE
+# result_rfe1 <- rfe(x = x_train, 
+#                    y = y_train, 
+#                    sizes = c(1:ncol(x_train)),
+#                    rfeControl = control)
+# 
+# # Print the results
+# print(result_rfe1)
+# 
+# # Print the selected features
+# print(predictors(result_rfe1))
+# 
+# # # Print the results visually
+# # ggplot(data = result_rfe1, aes(x = Variables, y = Accuracy)) + geom_point() + theme_bw()
+# # ggplot(data = result_rfe1, aes(x = Variables, y = Kappa)) + geom_point() + theme_bw()
+
+```
+
+
+```{r}
+# Assuming 'data' is your dataframe containing the variables
+# Set the seed for reproducibility
+# Assuming 'data' is your original dataframe containing all the data
+
+# Set the seed for reproducibility
+set.seed(123)
+
+# Split the dataset into training (80%) and testing (20%) sets
+train_indices <- sample(1:nrow(data), 0.8 * nrow(data))
+train_data <- data[train_indices, ]
+print(train_data)
+test_data <- data[-train_indices, ]
+print(colnames(train_data))
+# Prepare the training data
+x_train <- train_data[, c("Age", "GenHlth", "HighBP", "Diabetes" , "Sex" )]
+y_train <- train_data$BMI
+
+# Prepare the testing data
+x_test <- test_data[, c("Age", "GenHlth", "HighBP", "Diabetes", "Sex")]
+y_test <- test_data$BMI
+
+# Fit the LASSO regression model
+fit_lasso <- glmnet(as.matrix(x_train), y_train, alpha = 1)
+
+# Select the optimal lambda (tuning parameter) using cross-validation
+cv_fit <- cv.glmnet(as.matrix(x_train), y_train, alpha = 1)
+lambda_optimal <- cv_fit$lambda.min
+
+# Extract coefficients
+coef_lasso <- coef(fit_lasso, s = lambda_optimal)
+
+# Make predictions on the testing data
+predictions <- predict(fit_lasso, newx = as.matrix(x_test), s = lambda_optimal)
+
+# Evaluate the model (optional)
+# You can use metrics such as mean squared error (MSE), R-squared, etc.
+mse <- mean((predictions - y_test)^2)
+rsquared <- cor(predictions, y_test)^2
+
+# Print the evaluation metrics
+cat("Mean Squared Error (MSE):", mse, "\n")
+cat("R-squared:", rsquared, "\n")
+
+```
+
