@@ -576,49 +576,64 @@ RFE for feature selection, runs very long - dont know wether we have to use it
 
 
 ```{r}
-# Assuming 'data' is your dataframe containing the variables
-# Set the seed for reproducibility
-# Assuming 'data' is your original dataframe containing all the data
+selected_cols <- c("Age", "GenHlth", "HighBP", "Diabetes", "Sex", "BMI")
+data_subset <- data[selected_cols]
 
-# Set the seed for reproducibility
-set.seed(123)
+# Step 3: Split the dataset into features (X) and target variable (BMI)
+X <- data_subset[, !(names(data_subset) %in% "BMI")]
+y <- data_subset$BMI
 
-# Split the dataset into training (80%) and testing (20%) sets
-train_indices <- sample(1:nrow(data), 0.8 * nrow(data))
-train_data <- data[train_indices, ]
+# Step 4: Standardize the features
+X_scaled <- scale(X)
+
+# Step 5: Perform k-fold cross-validation
+set.seed(123)  # Set seed for reproducibility
+folds <- createFolds(y, k = 5, list = TRUE)  # Create k folds
+
+# Initialize vectors to store cross-validation results
+cv_errors <- c()
+cv_lambdas <- c()
+
+for (fold in seq_along(folds)) {
+  # Prepare training and testing datasets for the fold
+  train_indices <- unlist(folds[setdiff(names(folds), fold)])
+  test_indices <- folds[[fold]]
+  
+  X_train <- X_scaled[train_indices, ]
+  y_train <- y[train_indices]
+  X_test <- X_scaled[test_indices, ]
+  y_test <- y[test_indices]
+  
+  # Fit LASSO regression model using glmnet
+  cv_model <- cv.glmnet(X_train, y_train, alpha = 1, nfolds = 5)
+  
+  # Extract lambda with minimum cross-validated error
+  best_lambda <- cv_model$lambda.min
+  
+  # Predict on test set
+  y_pred <- predict(cv_model, s = best_lambda, newx = X_test)
+  
+  # Calculate mean squared error (MSE) for the fold
+  fold_error <- mean((y_pred - y_test)^2)
+  
+  # Store cross-validation results
+  cv_errors <- c(cv_errors, fold_error)
+  cv_lambdas <- c(cv_lambdas, best_lambda)
+}
+
+# Step 6: Choose the lambda with the minimum average cross-validated error
+best_lambda <- mean(cv_lambdas[which.min(cv_errors)])
+
+# Step 7: Train the final LASSO regression model using the entire dataset
+final_model <- glmnet(X_scaled, y, alpha = 1)
+final_model_with_lambda <- glmnet(X_scaled, y, alpha = 1, lambda = best_lambda)
 
 
-test_data <- data[-train_indices, ]
-print(colnames(train_data))
-# Prepare the training data
-x_train <- train_data[, c("Age", "GenHlth", "HighBP", "Diabetes" , "Sex" )]
-y_train <- train_data$BMI
-
-# Prepare the testing data
-x_test <- test_data[, c("Age", "GenHlth", "HighBP", "Diabetes", "Sex")]
-y_test <- test_data$BMI
-
-# Fit the LASSO regression model
-fit_lasso <- glmnet(as.matrix(x_train), y_train, alpha = 1)
-
-# Select the optimal lambda (tuning parameter) using cross-validation
-cv_fit <- cv.glmnet(as.matrix(x_train), y_train, alpha = 1)
-lambda_optimal <- cv_fit$lambda.min
-
-# Extract coefficients
-coef_lasso <- coef(fit_lasso, s = lambda_optimal)
-
-# Make predictions on the testing data
-predictions <- predict(fit_lasso, newx = as.matrix(x_test), s = lambda_optimal)
-
-# You can use metrics such as mean squared error (MSE), R-squared, etc.
-mse <- mean((predictions - y_test)^2)
-rsquared <- cor(predictions, y_test)^2
-
-# Print the evaluation metrics
-cat("Mean Squared Error (MSE):", mse, "\n")
-cat("R-squared:", rsquared, "\n")
-
+y_pred_final <- predict(final_model_with_lambda, s = best_lambda, newx = X_scaled)
+final_rmse <- sqrt(mean((y_pred_final - y)^2))
+final_rmse
+# treba implementovat este R squared
+plot(cv_model)
 ```
 Dostali sme skoro rovnake vysledky ako s linearnou regresiou. R squared je 0.076 co znamena ze prediktory su zodpovedne za 7.6 % variancie BMI, co je relativne malo. 
 
