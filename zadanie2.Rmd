@@ -704,18 +704,20 @@ n_samples <- 100
 random_indices <- sample(nrow(data_balanced), n_samples, replace = FALSE)
 random_samples <- data_balanced[random_indices, ]
 
-
-
+random_samples$Diabetes <- ifelse(random_samples$Diabetes==0,"No","Yes")
 
 hyperparameters <- expand.grid(
                     .method = c("svmLinear", "svmRadialSigma", "svmPoly")
                    )
 
-ctrl <- trainControl(method = "cv",  # cross-validation
-                     number = 10,     # 10-fold CV
-                     classProbs = TRUE,
-                     summaryFunction = twoClassSummary,  
-                     savePredictions = TRUE)  # vypisy cez trening
+ctrl <- trainControl(
+  method = "cv",             # cross-validation
+  number = 10,               # 10-fold CV
+  search = "random",
+  classProbs = TRUE,         # Enable class probabilities
+  summaryFunction = twoClassSummary,
+  savePredictions = TRUE     # Save predictions
+)
 
 for (method in hyperparameters$.method) {
   if (method == "svmRadialSigma") {
@@ -754,15 +756,28 @@ for (method in hyperparameters$.method) {
   }
 }
 ```
-
-### Vyhodnotenie modelu
 ```{r}
-
+svm_model_radial$finalModel
+svm_model_radial$results
 ```
 
+### Vyhodnotenie modelu
+
+
 ```{r}
-str(svm_model_linear$pred$obs)
-str(svm_model_linear$pred$pred)
+
+auc_linear <- max(svm_model_linear$results$ROC)
+auc_radial <- max(svm_model_radial$results$ROC)
+auc_poly <- max(svm_model_poly$results$ROC)
+
+max_auc <- max(auc_linear, auc_radial, auc_poly)
+best_method <- ifelse(max_auc == auc_linear, "svmLinear",
+                      ifelse(max_auc == auc_radial, "svmRadialSigma", "svmPoly"))
+
+# Print the results
+cat("Best performing model:", best_method, "\n")
+cat("AUC:", max_auc, "\n")
+
 ```
 
 
