@@ -4,63 +4,41 @@ output: html_document
 date: "2024-04-13"
 ---
 
-```
-Diabetes_binary : you have diabetes (0,1)
+# Dataset o Diabete
 
-HighBP : Adults who have been told they have high blood pressure by a doctor, nurse, or other health professional (0,1)
-
-HighChol : Have you EVER been told by a doctor, nurse or other health professional that your blood cholesterol is high? (0,1)
-
-CholCheck : Cholesterol check within past five years (0,1)
-
-BMI : Body Mass Index (BMI)
-
-Smoker : Have you smoked at least 100 cigarettes in your entire life? [Note: 5 packs = 100 cigarettes] (0,1)
-
-Stroke : (Ever told) you had a stroke. (0,1)
-
-HeartDiseaseorAttack : Respondents that have ever reported having coronary heart disease (CHD) or myocardial infarction (MI) (0,1)
-
-PhysActivity : Adults who reported doing physical activity or exercise during the past 30 days other than their regular job (0,1)
-
-Fruits : Consume Fruit 1 or more times per day (0,1)
-
-Veggies : Consume Vegetables 1 or more times per day (0,1)
-
-HvyAlcoholConsump : Heavy drinkers (adult men having more than 14 drinks per week and adult women having more than 7 drinks per week)(0,1)
-
-AnyHealthcare : Do you have any kind of health care coverage, including health insurance, prepaid plans such as HMOs, or government plans such as Medicare, or Indian Health Service? (0,1)
-
-NoDocbcCost : Was there a time in the past 12 months when you needed to see a doctor but could not because of cost? (0,1)
-
-GenHlth : Would you say that in general your health is: rate (1 ~ 5)
-
-MentHlth : Now thinking about your mental health, which includes stress, depression, and problems with emotions, for how many days during the past 30 days was your mental health not good? (0 ~ 30)
-
-PhysHlth : Now thinking about your physical health, which includes physical illness and injury, for how many days during the past 30 days was your physical health not good? (0 ~ 30)
-
-DiffWalk : Do you have serious difficulty walking or climbing stairs? (0,1)
-
-Sex : Indicate sex of respondent (0,1) (Female or Male)
-
-Age : Fourteen-level age category (1 ~ 14)
-
-Education : What is the highest grade or year of school you completed? (1 ~ 6)
-
-Income : Is your annual household income from all sources: (If respondent refuses at any income level, code "Refused.") (1 ~ 8)
-```
-
-
-
+-   **Diabetes_binary**: máte diabetes? 0 = no diabetes 1 = pre-diabetes 2 = diabetes
+-   **HighBP**: Dospelí, ktorým lekár, sestra alebo iný zdravotnícky pracovník povedal, že majú vysoký krvný tlak (0,1)
+-   **HighChol**: Boli vám KEDYKOĽVEK povedané lekárom, sestrou alebo iným zdravotníckym pracovníkom, že máte vysoký cholesterol? (0,1)
+-   **CholCheck**: Kontrola cholesterolu v posledných piatich rokoch (0,1)
+-   **BMI**: Index telesnej hmotnosti (BMI)
+-   **Smoker**: Fajčili ste počas celého života aspoň 100 cigariet? [Poznámka: 5 balíčkov = 100 cigariet] (0,1)
+-   **Stroke**: (Bolo vám povedané) že ste mali mozgovú príhodu. (0,1)
+-   **HeartDiseaseorAttack**: Respondenti, ktorí kedy uviedli, že majú koronárnu srdcovú chorobu (CHD) alebo infarkt myokardu (MI) (0,1)
+-   **PhysActivity**: Dospelí, ktorí uviedli, že počas posledných 30 dní robili fyzickú aktivitu alebo cvičenie okrem svojej pravidelnej práce (0,1)
+-   **Fruits**: Konzumácia ovocia 1 alebo viackrát denne (0,1)
+-   **Veggies**: Konzumácia zeleniny 1 alebo viackrát denne (0,1)
+-   **HvyAlcoholConsump**: Veľkí konzumenti alkoholu (dospelí muži, ktorí konzumujú viac ako 14 nápojov týždenne a dospelé ženy, ktoré konzumujú viac ako 7 nápojov týždenne)(0,1)
+-   **AnyHealthcare**: Máte nejaké zdravotné poistenie vrátane zdravotného poistenia, predplatených plánov ako HMO, alebo vládnych plánov ako Medicare, alebo Indian Health Service? (0,1)
+-   **NoDocbcCost**: Bol v posledných 12 mesiacoch čas, keď ste potrebovali vidieť lekára, ale nemohli ste si to dovoliť kvôli nákladom? (0,1)
+-   **GenHlth**: Povedali by ste, že vo všeobecnosti je váš zdravotný stav: hodnotenie (1 \~ 5)
+-   **MentHlth**: Teraz, keď premýšľate o svojom duševnom zdraví, ktoré zahŕňa stres, depresiu a problémy s emóciami, koľko dní počas posledných 30 dní bolo vaše duševné zdravie nie dobré? (0 \~ 30)
+-   **PhysHlth**: Teraz, keď premýšľate o svojom fyzickom zdraví, ktoré zahŕňa fyzické choroby a zranenia, koľko dní počas posledných 30 dní bolo vaše fyzické zdravie nie dobré? (0 \~ 30)
+-   **DiffWalk**: Máte vážne ťažkosti s chôdzou alebo s vyliezaním schodov? (0,1)
+-   **Sex**: Uveďte pohlavie respondenta (0,1) (Žena alebo Muž)
+-   **Age**: Štrnásťstupňová veková kategória (1 \~ 14)
+-   **Education**: Aký je najvyšší stupeň alebo rok školy, ktorý ste dokončili? (1 \~ 6)
+-   **Income**: Je váš ročný domáci príjem zo všetkých zdrojov: (Ak respondent odmietne pri akejkoľvek úrovni príjmu, označte "Refused") (1 \~ 8)
 
 ```{r}
 library(leaps)
+library(pROC)
 library(reshape2)
 library(tidyverse)
 library(magrittr) 
 library(data.table) 
 library(caret)
 library(ggplot2)
+library(e1071)
 library(readxl)
 library(cowplot)
 library(patchwork)
@@ -70,46 +48,48 @@ library(caret)
 library(caretEnsemble)
 library(glmnet)
 ```
+
+Nastavenie cesty
+
 ```{r}
 setwd("./") 
 list.files() 
 ```
 
-## R Markdown
+## Načítanie datasetu
+
 ```{r}
 data <- read.csv("diabetes_012_health_indicators_BRFSS2015.csv")
 names(data)
 head(data)
 ```
+
 # Popis dát
+
 ```{r}
 summary(data)
 cat("Colnum : ", ncol(data),"\n")
 cat("Rownum : ",nrow(data))
 ```
 
-
 ```{r}
-
-#View(data)
+View(data)
 ```
+
+## Unikátne hodnoty 
 
 ```{r}
 number_of_uniq_data <- sapply(data, function(x) length(unique(x)))
+number_of_uniq_data
 ```
+## Unikátne hodnoty diabetu
+0 = no diabetes 1 = pre-diabetes 2 = diabetes
 
 
 ```{r}
-cat("Unique values in dataset:\n")
-print(number_of_uniq_data)
-print("####")
-print("Diabetes values :")
 table(data$Diabetes_012, useNA = 'always')
-
-
 ```
-Vidíme, že máme veľa binárnych hodnôt. Hodnoty, ktorými budeme pracovať pri vytáraní modelu budeme musieť enkódovať.
-Náš label hodnota Diabetes_012 disponuje s 3 hodnotami. 0 - no diabetes 1 - prediabetes 2 - diabetes .
+Vidíme, že máme veľa binárnych hodnôt. Hodnoty, ktorými budeme pracovať pri vytáraní modelu budeme musieť enkódovať. Naša predikovaná hodnota Diabetes_012 disponuje 3 hodnotami. 0 - no diabetes 1 - prediabetes 2 - diabetes. 
 
 ```{r}
 sapply(data, class)
@@ -117,11 +97,12 @@ table(sapply(data, class))
 sum(is.na(data))
 
 ```
-Data obsahuju len numericke hodnoty a ziadne chýbajúce hodnoty.
+
+Okrem toho dataset obsahuje všetky pozorovania v numerických hodnotách a nemá chýbajúce hodnoty.
 
 ```{r}
 cat("Number of rows: ", nrow(data),"\n")
-cat("Number of duplicates")
+cat("Number of duplicates ")
 num_duplicates <- sum(duplicated(data))
 print(num_duplicates)
 
@@ -133,7 +114,7 @@ cat("Number of rows: ", nrow(data),"\n")
 
 ```
 
-
+Po odstránení duplikátov nám ostalo 229781 pozorovaní. 
 
 ```{r}
 data <- data %>% 
@@ -147,11 +128,14 @@ data <- data %>%
 ```
 
 
+
 ```{r}
 print("Diabetes values :")
 table(data$Diabetes, useNA = 'always')
 ```
-Mergovali sme hodnoty 1 a 2, a tych ktori maju 1 (prediabetes) budeme brat ako keby uz mali daibete (2).
+
+Kedže dataset nám opisuje multi-class problém (máme 3 triedy v Diabetes_012), stav prediabetu a diabetu zakódujeme do hodnoty 1. 
+Náš model teda bude riešiť two-class problém pri klasifikácii. Stav 0 sme nechali 0. (No diabetes)
 
 ```{r}
 
@@ -184,17 +168,11 @@ print_histograms <- function(data, columns) {
   }
 }
 
-
-
 print_histograms(data, nonbinarycolumns)
 
 ```
 
-```{r}
-
-```
-
-
+Čo sa týka viachodnotových stĺpcov v datasete, vidíme že normálne distribuovaným hodnotám sa približujú hodnoty v Age. Hodnota BMI sa takito približuje k normálnemu distribuovaniu no vidíme tu pravé zošikmenie hodnôt ( right skew/positive skew ) 
 
 ```{r}
 
@@ -228,8 +206,8 @@ ggsave("combined_plot.png", combined_plot, width = 10, height = 10)
 print(combined_plot)
 
 ```
-Na základe týchto grafov, žiadné stĺpce neobsahujú hodnoty, ktoré by boli nižšie alebo vačšie ako zadefiované extrémy týchto stlpcov. 
 
+Boxploty takisto potvrdzujú, že najbližšie k normálnej distribúcii je stĺpec Age. 
 
 ```{r}
 handle_outliers <- function(data, columns, sensitivity) {
@@ -287,11 +265,12 @@ nonbinarycolumns <- non_binary_columns(data)
 nonbinarycolumns <- non_binary_columns(data)
 cat("Non binary columns : ",nonbinarycolumns)
 
-dataWithOutliers <- data
-data <- handle_outliers(data, nonbinarycolumns, 0.5)
+#data_With_Outliers <- data
+#data <- handle_outliers(data, nonbinarycolumns, 0.8)
+#head(data)
 ```
 
-
+Nebudeme v našom prípade odstranovať outliers lebo tie nesú dôležitú informáciu pre ako BMI tak aj samotný diabetes.
 
 ```{r}
 library(ggplot2)
@@ -327,9 +306,6 @@ generate_correlation_heatmap <- function(correlation_matrix, title) {
 # Compute correlation matrix for the entire dataset
 correlation_matrix <- cor(data)
 
-# Generate heatmap for entire dataset
-generate_correlation_heatmap(correlation_matrix, "Correlation of Features - Entire Dataset")
-
 # Compute correlation matrix for non-binary columns
 correlation_matrix_nonbinary <- cor(data[, nonbinarycolumns])
 
@@ -337,14 +313,13 @@ correlation_matrix_nonbinary <- cor(data[, nonbinarycolumns])
 generate_correlation_heatmap(correlation_matrix_nonbinary, "Correlation of Features - Non-Binary Columns")
 
 ```
-Na grafe je vidno, že viacere  hodnoty sa korelujú. Dokonca máme aj negatívne korlácie.
-Z tychto hodnot nedozvieme vsetko, ale napr. mozeme mat predpoklad, ze cim starsi je clovek, tym menej zaraba, alebo cim viac zaraba clovek, tym ma vacsie vzdelanie.
+
+Na grafe je vidno, že viacere hodnoty sa korelujú. Dokonca máme aj negatívne korlácie. Z tychto hodnot nedozvieme vsetko, ale napr. mozeme mat predpoklad, ze cim vzdelanejši je clovek, tym viac zaraba, alebo cim viac zaraba clovek, tym ma vacsie vzdelanie.
 
 Klucove info z tejto tabulky su napr:, age, GenHlth, BMI, MentlHlth, PhysHlth
 
-
-
 Vypocitame korelácie medzi kategorickými hodnotami, ktoré rozdelujeme na nominalne a ordinalne.
+
 ```{r}
 ordinal_categorical_columns <- c("Education", "Income", "GenHlth")
 
@@ -367,13 +342,13 @@ print("Tetrachoric Correlation for Binary Columns:")
 print(tetrachoric_corr)
 
 ```
-Vypocitali sme korelacie medzi nominalnymi kategorickými hodnotami. Tieto výsledky nám pomozu si vytvorit model, kedze vidíme vztahy medzi hodnotou Diabetes co chceme predikovat, a ostatnými hodnotami.
-Napr. HighBP a Diabetes maju mierne velku korelcáie, preto si predpokladáme, že vyssi krvný tlak a srdcové ochorenia znamenaju vacsiu sancu na diabetes.
+
+Vypocitali sme korelacie medzi nominalnymi kategorickými hodnotami. Tieto výsledky nám pomozu vytvorit model, kedze vidíme vztahy medzi hodnotou Diabetes co chceme predikovat, a ostatnými hodnotami. Napr. HighBP a Diabetes maju mierne velku korelcáie, preto si predpokladáme, že vyssi krvný tlak a srdcové ochorenia znamenaju vacsiu sancu na diabetes.
 
 Na druhej strane, fyzická aktivita, konzumovanie zelenín a absolvovanie preventívnych návštev lekára - čiže keď sa nenastala taká situácia, že doktor nebol navštevovaný, ked by mal byt - NoDocbcCost, znižujú šancu Diabetes. Prekvapivo aj konzumácia alkoholu.
 
-
 Klucove info: HighBP, HighChl, Chlch, HrtDa,, HvyAc, Stroke, AnyHL
+
 ```{r}
 # Calculate Polychoric correlation for ordinal columns
 polychoric_corr <- polychoric(ordinal_data)
@@ -383,9 +358,6 @@ print("###########")
 print("Polychoric Correlation for Ordinal Columns:")
 print(polychoric_corr)
 ```
-
-
-
 
 ```{r}
 print(nonbinarycolumns)
@@ -416,16 +388,13 @@ for (col in all_categorical_values_without_diabetes) {
 
  # Print the plots
  for (i in seq_along(plots)) {
-  print(plots[[i]])
+  #print(plots[[i]])
  }
 ```
 
-
-Na tychto grafoch vidíme ditribúciu Diabetes medzi ostatnými binárnými hodnotami. O4ividne sú viac diabetikov medzi jednotlivcami, ktorí maju vysoky cholesterol, krvný tlak, alebo medzi tými ktorí uz mali stroke
-
+Na tychto grafoch vidíme ditribúciu Diabetes medzi ostatnými binárnými hodnotami. Očividne sú viac diabetikov medzi jednotlivcami, ktorí maju vysoky cholesterol, krvný tlak, alebo medzi tými ktorí uz mali stroke
 
 ```{r}
-
 
 diabetes_percentage <- data %>%
   group_by(Diabetes) %>%
@@ -446,6 +415,7 @@ print(piechart)
 ```
 
 Okrem korelácie, pouzivame regsubsets aby sme nasli najlepsie predictory pre BMI
+
 ```{r}
 # Perform best subset regression
 Best_Subset <- regsubsets(BMI ~ .,
@@ -463,21 +433,22 @@ summary_best_subset
 which.max(summary_best_subset$adjr2)
 summary_best_subset$which[21,]
 ```
+
 <!-- Hviezdičky ( * ) v dolnej časti výstupu označujú, ktoré predikčné premenné patria do najlepšieho regresného modelu pre každý možný model s rôznym počtom predikčných premenných. -->
 
-
 <!-- Pre model s jednou prediktorovou premennou je najlepším regresným modelom model, v ktorom sa ako prediktorová premenná použije HighBP -->
+
 <!-- V prípade modelu s dvoma prediktorovými premennými sa najlepší regresný model vytvorí použitím Diabetes a HighBP ako prediktorových premenných. -->
 
-
-
 # Linear regression model
+
 ```{r}
 model <- data %$% 
   lm(BMI ~ Age + GenHlth + HighBP + Diabetes + Sex )
 
 summary(model)
 ```
+
 Celkovo model naznačuje, že Age, General Health, High Blood Pressure, Diabetes, and Sex sú významnými prediktormi BMI. Model však vysvetľuje len malú časť rozptylu BMI (adjusted R-squared = 0.07293), čo naznačuje, že BMI môžu ovplyvňovať aj iné faktory, ktoré nie sú zahrnuté v modeli.
 
 Intercept: Priemerná hodnota BMI, keď sú všetky ostatné premenné nulové, je 26.70. Tento koeficient je štatisticky významný (p \< 0.05).
@@ -486,9 +457,8 @@ Intercept: Priemerná hodnota BMI, keď sú všetky ostatné premenné nulové, 
 
 Ak má osoba vysoký krvný tlak (HighBP = 1), očakáva sa, že jej BMI bude v priemere vyšší približne o 1,337023 jednotky v porovnaní s osobou bez vysokého krvného tlaku (HighBP = 0), pričom sa kontrolujú ostatné premenné v modeli.
 
-
-
 Plottig reg lines for predictors
+
 ```{r}
 ggplotRegression <- function(fit) {
   require(ggplot2)
@@ -519,7 +489,273 @@ for (predictor in names(plots)) {
 }
 
 ```
+## Logistická regresia
+
+
+Budeme klasifikovať s týmto modelom, to či človek nemá diabetes/prediabetes, alebo či sa nachádzav diabetes štádiu. Pôjde teda o binárnu klasifikáciu.
+
+```{r}
+# Generate heatmap for entire dataset
+generate_correlation_heatmap(correlation_matrix, "Correlation of Features - Entire Dataset")
+```
+Na základe korelačnej heatmapy vidíme, použijeme predikáty ako HighBP, BMI, GenHlth( ten má silnú koreláciu s DiffWalk a teda toto nepoužijeme kedže vyzerá ze sú vzájomne závislé) a Age. 
+
+
+```{r}
+plot_logistic_regression <- function(data, predictors) {
+  for (predictor in predictors) {
+    # Plot
+    p <- data %>%
+      ggplot(aes_string(x = predictor, y = "Diabetes")) +
+      geom_point(position = position_jitter(width = 0.3, height = 0.06), 
+                 alpha = 0.05, 
+                 shape = 1, 
+                 size = 1.5) + 
+      stat_smooth(method = "glm", method.args = list(family = "binomial"), 
+                  aes(color = predictor)) +
+      ggtitle(paste("Diabetes vs", predictor), 
+              subtitle = "Visualization of logistic regression fit") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    
+    print(p)
+  }
+}
+
+
+
+predictors <- c("HighBP", "PhysActivity", 
+                "DiffWalk", "GenHlth", "BMI", "HighBP", 
+                "HighChol", "HeartDiseaseorAttack", "Age", "Income")
+
+
+
+#plot_logistic_regression(data, predictors)
+```
+
+```{r}
+model <- glm(Diabetes ~ HighBP + DiffWalk + GenHlth + BMI + Age,
+  data = data,
+  family = binomial)
+summary(model)
+```
+
+Zadefinujeme si naše H0
+
+1.H0: Nie je pravda, že človek s diagnostikovaným vysokým krvným tlakom má šancu na diabetes alebo prediabetes.
+
+2.H0: Človek s problémom s chodením nemá diabetes alebo prediabetes.
+
+3.H0: Človek ktorý uviedol, že sa má dobre nemá nemá diabetes alebo prediabetes.
+
+4.H0: BMI nemá vplyv na diabets alebo prediabetes stav.
+
+5.H0: So zvýšeným vekom nestúpa šanca na prediabetes alebo diabetes.
+
+
+Všetky h0 zamietnuté.
+
+
+```{r}
+real.classes <- model$y
+head(model$y, n=10)
+
+predicted.class.probabilities <- model$fitted.values
+predicted.classes <- if_else(predicted.class.probabilities >=0.5, 1, 0) 
+
+prediction_vs_real <- data.frame(
+  Real.Classes = real.classes,
+  Predicted.Class.Probabilities = predicted.class.probabilities,
+  Predicted.Classes = predicted.classes
+)
+```
+
+
+```{r}
+library(caret)
+caret::confusionMatrix(as_factor(predicted.classes), as_factor(real.classes), positive = "1")
+```
+```{r}
+
+TP <- sum(prediction_vs_real$Real.Classes == 1 & prediction_vs_real$Predicted.Classes == 1)
+TN <- sum(prediction_vs_real$Real.Classes == 0 & prediction_vs_real$Predicted.Classes == 0)
+FP <- sum(prediction_vs_real$Real.Classes == 0 & prediction_vs_real$Predicted.Classes == 1)
+FN <- sum(prediction_vs_real$Real.Classes == 1 & prediction_vs_real$Predicted.Classes == 0)
+
+cat("True Positives (TP):", TP, "\n")
+cat("True Negatives (TN):", TN, "\n")
+cat("False Positives (FP):", FP, "\n")
+cat("False Negatives (FN):", FN, "\n")
+
+accuracy <- (TP + TN)/(TP+TN+FN+FP)
+precision <- TP / (TP + FP)
+recall <- TP / (TP + FN)
+f1_score <- 2 * (precision * recall) / (precision + recall)
+
+paste("Accuracy score is ", accuracy)
+paste("Precision score is ", precision)
+paste("Recall score is ", recall)
+paste("F1 score is ", f1_score)
+```
+Model performance pri 0.5 cutoffe je nič moc, podme nájsť optimálny cutoff.
+
+### ROC CURVE
+
+```{r}
+
+roc_obj <- roc(response = real.classes, 
+               predictor = predicted.class.probabilities,
+               levels = c(0, 1))
+```
+```{r}
+plot(roc_obj, main = "ROC Curve")
+abline(a = 0, b = 1, lty = 2, col = "gray")
+```
+
+```{r}
+coords <- coords(roc_obj, "best", best.method = "youden")
+optimal_cutoff <- coords$threshold
+optimal_sensitivity <- coords$sensitivity
+optimal_specificity <- coords$specificity
+```
+
+```{r}
+plot(roc_obj)
+points(coords$specificity, coords$sensitivity, pch = 19, col = 'red', cex = 0.7)
+legend("bottomright", pch = 19, col = 'red', legend = paste("Optimal cutoff:", round(optimal_cutoff, 4)))
+optimal_cutoff
+
+```
+```{r}
+real.classes <- model$y
+head(model$y, n=10)
+
+predicted.class.probabilities <- model$fitted.values
+predicted.classes <- ifelse(predicted.class.probabilities >=0.1563, 1, 0) 
+
+caret::confusionMatrix(as_factor(predicted.classes), as_factor(real.classes), positive = "1")
+```
+Model je teda schopnejší správne predikovať s týmto cutoffom aj minoritnú triedu (1 - mám diabetes), vďaka nevybalancovaným triedam ale vidíme, že by sme pre hypochondrov radšej zvolili model s cutoffom 0.5, aby sme im s vačšiou pravdepodobnosťou mohli zaručiť, že nemajú diabetes. Ak by ale bolo podstatné určiť a dôležitejšie určit TRUE POSITIVES, teda správne identifikovať diabetikov, zvolený cutoff je najlepší možný.
+
+
+
+## Support vector machine
+```{r}
+minority_size <- table(data$Diabetes)[2]
+```
+
+
+```{r}
+data_minority <- data[data$Diabetes == 1, ] # Minoritná trieda
+data_majority <- data[data$Diabetes == 0, ]
+data_majority_sampled <- data_majority[sample(nrow(data_majority), minority_size), ]
+
+# Zlúčenie dát späť do vyváženého datasetu
+data_balanced <- rbind(data_minority, data_majority_sampled)
+head(data_balanced)
+```
+
+
+```{r}
+diabetes_percentage <- data_balanced %>%
+  group_by(Diabetes) %>%
+  summarise(Count = n()) %>%
+  mutate(Percentage = prop.table(Count) * 100)
+
+# Create pie chart
+piechart <- ggplot(diabetes_percentage, aes(x = "", y = Percentage, fill = factor(Diabetes))) +
+  geom_bar(stat = "identity", width = 1) +
+  geom_text(aes(label = paste(round(Percentage, 1), "%")), position = position_stack(vjust = 0.5)) +  # Add percentage labels
+  coord_polar(theta = "y") +
+  labs(fill = "Diabetes", title = "Percentage Distribution of Diabetes") +
+  theme_void() +
+  theme(legend.position = "bottom")  # Move legend to the bottom
+
+# Print pie chart
+print(piechart)
+```
+
+
+### Train test 90:10
+
+```{r}
+set.seed(123)
+
+trainIndex <- createDataPartition(data_balanced$Diabetes, p = 0.9, list = FALSE)
+
+trainData <- data_balanced[trainIndex, ]
+testData <- data_balanced[-trainIndex, ]
+
+```
+
+
+```{r}
+correlation_matrix <- cor(data_balanced)
+correlations_with_diabetes <- abs(correlation_matrix["Diabetes", ])
+correlations_with_diabetes <- correlations_with_diabetes[-which(names(correlations_with_diabetes) == "Diabetes")]
+correlations_with_diabetes
+
+
+```
+Zvolenie features, ktoré korelujú s Diabetom aspon na 0.2
+
+```{r}
+threshold <- 0.2
+selected_features <- names(which(correlations_with_diabetes >= threshold))
+
+formula <- as.formula(paste("Diabetes ~", paste(selected_features, collapse = " + ")))
+
+selected_features
+
+```
+
+### Tréning modelu
+
+```{r}
+ctrl <- trainControl(method = "cv",  # cross-validation
+                     number = 5,     # 5-fold CV
+                     verboseIter = TRUE,
+                     search = "random",
+                     savePredictions = TRUE)  # vypisy cez trening
+
+svm_model <- train(formula = formula, 
+                   data = trainData, 
+                   method = "svmRadialSigma", # Specify the default method
+                   trControl = ctrl,
+                   tuneGrid = expand.grid(
+                     .sigma = seq(0.005, 0.2, length = 20),
+                     .C = seq(0.1, 10)
+                   ),
+                   preProcess = c("center", "scale"))
+```
+
+### Vyhodnotenie modelu
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Defining LASSO model
+
 ```{r}
 # Define the control using a random forest selection function
 control <- rfeControl(functions = rfFuncs, # random forest
@@ -532,8 +768,8 @@ control <- rfeControl(functions = rfFuncs, # random forest
 library(randomForest)
 ```
 
+RFE for feature selection, runs very long - dont know wether we have to use it
 
-RFE for feature selection, runs very long - dont know wether we have to use it 
 ```{r}
 # # Features
 # x <- data %>%
@@ -573,7 +809,6 @@ RFE for feature selection, runs very long - dont know wether we have to use it
 # # ggplot(data = result_rfe1, aes(x = Variables, y = Kappa)) + geom_point() + theme_bw()
 
 ```
-
 
 ```{r}
 selected_cols <- c("Age", "GenHlth", "HighBP", "Diabetes", "Sex", "BMI")
@@ -635,6 +870,7 @@ final_rmse
 # treba implementovat este R squared
 plot(cv_model)
 ```
-Dostali sme skoro rovnake vysledky ako s linearnou regresiou. R squared je 0.076 co znamena ze prediktory su zodpovedne za 7.6 % variancie BMI, co je relativne malo. 
 
-Priemern8 chyba predikcie a realnej hodnoty je  14.64678., co je vysoke. Takyto rozdiel v BMI vyrazne zmeni stav cloveka.
+Dostali sme skoro rovnake vysledky ako s linearnou regresiou. R squared je 0.076 co znamena ze prediktory su zodpovedne za 7.6 % variancie BMI, co je relativne malo.
+
+Priemern8 chyba predikcie a realnej hodnoty je 14.64678., co je vysoke. Takyto rozdiel v BMI vyrazne zmeni stav cloveka.
