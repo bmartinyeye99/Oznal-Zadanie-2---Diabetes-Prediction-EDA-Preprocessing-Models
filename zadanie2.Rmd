@@ -713,7 +713,7 @@ selected_features
 
 ```{r}
 ctrl <- trainControl(method = "cv",  # cross-validation
-                     number = 5,     # 5-fold CV
+                     number = 10,     # 5-fold CV
                      verboseIter = TRUE,
                      search = "random",
                      savePredictions = TRUE)  # vypisy cez trening
@@ -723,7 +723,7 @@ svm_model <- train(formula = formula,
                    method = "svmRadialSigma", # Specify the default method
                    trControl = ctrl,
                    tuneGrid = expand.grid(
-                     .sigma = seq(0.005, 0.2, length = 20),
+                     .sigma = seq(0.005, 0.2, length = 10),
                      .C = seq(0.1, 10)
                    ),
                    preProcess = c("center", "scale"))
@@ -732,7 +732,8 @@ svm_model <- train(formula = formula,
 ### Vyhodnotenie modelu
 
 ```{r}
-
+svm_model$bestTune
+svm_model$results[svm_model$results$Accuracy== max(svm_model$results$Accuracy), ]
 ```
 
 
