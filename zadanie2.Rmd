@@ -700,37 +700,69 @@ selected_features
 ### Tréning modelu
 
 ```{r}
+n_samples <- 100
+random_indices <- sample(nrow(data_balanced), n_samples, replace = FALSE)
+random_samples <- data_balanced[random_indices, ]
 
-data_balanced$Diabetes <- factor(data_balanced$Diabetes, levels = c(0, 1))
+
+
+
+hyperparameters <- expand.grid(
+                    .method = c("svmLinear", "svmRadialSigma", "svmPoly")
+                   )
 
 ctrl <- trainControl(method = "cv",  # cross-validation
-                     number = 5,     # 5-fold CV
-                     verboseIter = TRUE,
-                     search = "random",
+                     number = 10,     # 10-fold CV
+                     classProbs = TRUE,
+                     summaryFunction = twoClassSummary,  
                      savePredictions = TRUE)  # vypisy cez trening
 
-svm_model <- train(form = formula, 
-                   data = data_balanced, 
-                   method = "svmRadialSigma", # mame vela kategorickych predikatov vo formule
-                   trControl = ctrl,
-                   tuneGrid = expand.grid(
-                     .sigma = seq(0.005, 0.2, length = 3),
-                     .C = seq(0.1, 10, length = 3)
-                   ),
-                   preProcess = c("center", "scale"))
+for (method in hyperparameters$.method) {
+  if (method == "svmRadialSigma") {
+    svm_model_radial <- train(form = formula,
+                       data = random_samples,
+                       method = method,
+                       trControl = ctrl,
+                       tuneGrid = expand.grid(
+                         .sigma = seq(0.005, 0.2, length = 3),
+                         .C = seq(0.1, 10, length = 3)),
+                       metric = "ROC",
+                       preProcess = c("center", "scale"))
+
+  } else if (method == "svmPoly") {
+    svm_model_poly <- train(form = formula,
+                       data = random_samples,
+                       method = method,
+                       trControl = ctrl,
+                       tuneGrid = expand.grid(
+                         .degree = seq(2, 5, length = 4),
+                         .C = seq(0.1, 10, length = 3),
+                         .scale = c(0, 1)),
+                       metric = "ROC",
+                       preProcess = c("center", "scale"))
+
+  } else {
+    svm_model_linear <- train(form = formula,
+                       data = random_samples,
+                       method = method,
+                       trControl = ctrl,
+                       tuneGrid = expand.grid(
+                         .C = seq(0.1, 10, length = 3)),
+                       metric = "ROC",
+                       preProcess = c("center", "scale"))
+
+  }
+}
 ```
 
 ### Vyhodnotenie modelu
+```{r}
+
+```
 
 ```{r}
-resample_results <- svm_model$resample
-
-# Sort the results by ROC
-sorted_results <- resample_results[order(-resample_results$ROC), ]
-
-# Print or access the best-performing combination
-best_combination <- sorted_results[1, ]
-print(best_combination)
+str(svm_model_linear$pred$obs)
+str(svm_model_linear$pred$pred)
 ```
 
 
