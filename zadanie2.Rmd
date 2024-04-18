@@ -653,6 +653,8 @@ data_majority_sampled <- data_majority[sample(nrow(data_majority), minority_size
 # Zlúčenie dát späť do vyváženého datasetu
 data_balanced <- rbind(data_minority, data_majority_sampled)
 head(data_balanced)
+
+
 ```
 
 
@@ -676,25 +678,11 @@ print(piechart)
 ```
 
 
-### Train test 90:10
-
-```{r}
-set.seed(123)
-
-trainIndex <- createDataPartition(data_balanced$Diabetes, p = 0.9, list = FALSE)
-
-trainData <- data_balanced[trainIndex, ]
-testData <- data_balanced[-trainIndex, ]
-
-```
-
-
 ```{r}
 correlation_matrix <- cor(data_balanced)
 correlations_with_diabetes <- abs(correlation_matrix["Diabetes", ])
 correlations_with_diabetes <- correlations_with_diabetes[-which(names(correlations_with_diabetes) == "Diabetes")]
 correlations_with_diabetes
-
 
 ```
 Zvolenie features, ktoré korelujú s Diabetom aspon na 0.2
@@ -712,19 +700,22 @@ selected_features
 ### Tréning modelu
 
 ```{r}
+
+data_balanced$Diabetes <- factor(data_balanced$Diabetes, levels = c(0, 1))
+
 ctrl <- trainControl(method = "cv",  # cross-validation
-                     number = 10,     # 5-fold CV
+                     number = 5,     # 5-fold CV
                      verboseIter = TRUE,
                      search = "random",
                      savePredictions = TRUE)  # vypisy cez trening
 
-svm_model <- train(formula = formula, 
-                   data = trainData, 
-                   method = "svmRadialSigma", # Specify the default method
+svm_model <- train(form = formula, 
+                   data = data_balanced, 
+                   method = "svmRadialSigma", # mame vela kategorickych predikatov vo formule
                    trControl = ctrl,
                    tuneGrid = expand.grid(
-                     .sigma = seq(0.005, 0.2, length = 10),
-                     .C = seq(0.1, 10)
+                     .sigma = seq(0.005, 0.2, length = 3),
+                     .C = seq(0.1, 10, length = 3)
                    ),
                    preProcess = c("center", "scale"))
 ```
@@ -732,8 +723,14 @@ svm_model <- train(formula = formula,
 ### Vyhodnotenie modelu
 
 ```{r}
-svm_model$bestTune
-svm_model$results[svm_model$results$Accuracy== max(svm_model$results$Accuracy), ]
+resample_results <- svm_model$resample
+
+# Sort the results by ROC
+sorted_results <- resample_results[order(-resample_results$ROC), ]
+
+# Print or access the best-performing combination
+best_combination <- sorted_results[1, ]
+print(best_combination)
 ```
 
 
