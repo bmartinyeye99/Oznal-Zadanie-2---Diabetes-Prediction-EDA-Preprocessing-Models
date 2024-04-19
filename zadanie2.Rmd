@@ -329,7 +329,7 @@ binary_cols <- c('HighBP', 'HighChol', 'CholCheck', 'Smoker',
 
 all_categorical_values <-c('HighBP', 'HighChol', 'CholCheck', 'Smoker',
           'Stroke', 'HeartDiseaseorAttack', 'PhysActivity', 'Veggies',
-          'HvyAlcoholConsump', 'AnyHealthcare', 'NoDocbcCost', 'DiffWalk', 'Diabetes', "Education", "Income", "GenHlth")
+          'HvyAlcoholConsump', 'AnyHealthcare', 'NoDocbcCost', 'DiffWalk', 'Diabetes', "Education", "Income", "GenHlth", "Age", "Sex", "PhysHlth", "MentHlth", "Fruits")
 
 binary_data <- data[, binary_cols]
 ordinal_data <- data[, ordinal_categorical_columns]
@@ -350,7 +350,6 @@ Na druhej strane, fyzická aktivita, konzumovanie zelenín a absolvovanie preven
 Klucove info: HighBP, HighChl, Chlch, HrtDa,, HvyAc, Stroke, AnyHL
 
 ```{r}
-# Calculate Polychoric correlation for ordinal columns
 polychoric_corr <- polychoric(ordinal_data)
 
 print("###########")
@@ -417,21 +416,21 @@ print(piechart)
 Okrem korelácie, pouzivame regsubsets aby sme nasli najlepsie predictory pre BMI
 
 ```{r}
-# Perform best subset regression
-Best_Subset <- regsubsets(BMI ~ .,
-                          data = data,
-                          nbest = 1,      # 1 best model for each number of predictors
-                          nvmax = NULL,   # NULL for no limit on number of variables
-                          force.in = NULL, force.out = NULL,
-                          method = "exhaustive")
-
-# Summarize the results
-summary_best_subset <- summary(Best_Subset)
-
-# View the summary output
-summary_best_subset
-which.max(summary_best_subset$adjr2)
-summary_best_subset$which[21,]
+# # Perform best subset regression
+# Best_Subset <- regsubsets(BMI ~ .,
+#                           data = data,
+#                           nbest = 1,      # 1 best model for each number of predictors
+#                           nvmax = NULL,   # NULL for no limit on number of variables
+#                           force.in = NULL, force.out = NULL,
+#                           method = "exhaustive")
+# 
+# # Summarize the results
+# summary_best_subset <- summary(Best_Subset)
+# 
+# # View the summary output
+# summary_best_subset
+# which.max(summary_best_subset$adjr2)
+# summary_best_subset$which[21,]
 ```
 
 <!-- Hviezdičky ( * ) v dolnej časti výstupu označujú, ktoré predikčné premenné patria do najlepšieho regresného modelu pre každý možný model s rôznym počtom predikčných premenných. -->
@@ -457,7 +456,6 @@ Intercept: Priemerná hodnota BMI, keď sú všetky ostatné premenné nulové, 
 
 Ak má osoba vysoký krvný tlak (HighBP = 1), očakáva sa, že jej BMI bude v priemere vyšší približne o 1,337023 jednotky v porovnaní s osobou bez vysokého krvného tlaku (HighBP = 0), pričom sa kontrolujú ostatné premenné v modeli.
 
-Plottig reg lines for predictors
 
 ```{r}
 ggplotRegression <- function(fit) {
@@ -534,7 +532,7 @@ predictors <- c("HighBP", "PhysActivity",
 ```
 
 ```{r}
-model <- glm(Diabetes ~ HighBP + DiffWalk + GenHlth + BMI + Age,
+model <- glm(Diabetes ~ HighBP + BMI + GenHlth + PhysHlth + Age + Income,
   data = data,
   family = binomial)
 summary(model)
@@ -640,10 +638,15 @@ Model je teda schopnejší správne predikovať s týmto cutoffom aj minoritnú 
 
 
 ## Support vector machine
+
+
+Kedže SVM nie dobre zvláda nevybalancovanú predikovanú triedu:
+
 ```{r}
 minority_size <- table(data$Diabetes)[2]
 ```
 
+Prevedieme downsample na majoritnú skupinu, aby sme mali vyvážený dataset.
 
 ```{r}
 data_minority <- data[data$Diabetes == 1, ] # Minoritná trieda
@@ -677,6 +680,7 @@ piechart <- ggplot(diabetes_percentage, aes(x = "", y = Percentage, fill = facto
 print(piechart)
 ```
 
+Vidme vyvážený dataset.
 
 ```{r}
 correlation_matrix <- cor(data_balanced)
@@ -685,237 +689,485 @@ correlations_with_diabetes <- correlations_with_diabetes[-which(names(correlatio
 correlations_with_diabetes
 
 ```
-Zvolenie features, ktoré korelujú s Diabetom aspon na 0.2
+
+Zvolenie features, na zvolenie features sme využili RF, zobrazíme si teda najlepšie prediktory. 
 
 ```{r}
-threshold <- 0.2
-selected_features <- names(which(correlations_with_diabetes >= threshold))
-
-formula <- as.formula(paste("Diabetes ~", paste(selected_features, collapse = " + ")))
-
-selected_features
-
-```
-
-### Tréning modelu
-
-```{r}
-n_samples <- 100
-random_indices <- sample(nrow(data_balanced), n_samples, replace = FALSE)
-random_samples <- data_balanced[random_indices, ]
-
-random_samples$Diabetes <- ifelse(random_samples$Diabetes==0,"No","Yes")
-
-hyperparameters <- expand.grid(
-                    .method = c("svmLinear", "svmRadialSigma", "svmPoly")
-                   )
-
-ctrl <- trainControl(
-  method = "cv",             # cross-validation
-  number = 10,               # 10-fold CV
-  search = "random",
-  classProbs = TRUE,         # Enable class probabilities
-  summaryFunction = twoClassSummary,
-  savePredictions = TRUE     # Save predictions
-)
-
-for (method in hyperparameters$.method) {
-  if (method == "svmRadialSigma") {
-    svm_model_radial <- train(form = formula,
-                       data = random_samples,
-                       method = method,
-                       trControl = ctrl,
-                       tuneGrid = expand.grid(
-                         .sigma = seq(0.005, 0.2, length = 3),
-                         .C = seq(0.1, 10, length = 3)),
-                       metric = "ROC",
-                       preProcess = c("center", "scale"))
-
-  } else if (method == "svmPoly") {
-    svm_model_poly <- train(form = formula,
-                       data = random_samples,
-                       method = method,
-                       trControl = ctrl,
-                       tuneGrid = expand.grid(
-                         .degree = seq(2, 5, length = 4),
-                         .C = seq(0.1, 10, length = 3),
-                         .scale = c(0, 1)),
-                       metric = "ROC",
-                       preProcess = c("center", "scale"))
-
-  } else {
-    svm_model_linear <- train(form = formula,
-                       data = random_samples,
-                       method = method,
-                       trControl = ctrl,
-                       tuneGrid = expand.grid(
-                         .C = seq(0.1, 10, length = 3)),
-                       metric = "ROC",
-                       preProcess = c("center", "scale"))
-
-  }
-}
-```
-```{r}
-svm_model_radial$finalModel
-svm_model_radial$results
-```
-
-### Vyhodnotenie modelu
-
-
-```{r}
-
-auc_linear <- max(svm_model_linear$results$ROC)
-auc_radial <- max(svm_model_radial$results$ROC)
-auc_poly <- max(svm_model_poly$results$ROC)
-
-max_auc <- max(auc_linear, auc_radial, auc_poly)
-best_method <- ifelse(max_auc == auc_linear, "svmLinear",
-                      ifelse(max_auc == auc_radial, "svmRadialSigma", "svmPoly"))
-
-# Print the results
-cat("Best performing model:", best_method, "\n")
-cat("AUC:", max_auc, "\n")
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Defining LASSO model
-
-```{r}
-# Define the control using a random forest selection function
-control <- rfeControl(functions = rfFuncs, # random forest
-                      method = "repeatedcv", # repeated cv
-                      repeats = 5, # number of repeats
-                      number = 10) # number of folds
-```
-
-```{r}
+library(dplyr)
 library(randomForest)
-```
 
-RFE for feature selection, runs very long - dont know wether we have to use it
+Diabetes_vs_predictors <- randomForest(as.factor(Diabetes)~ ., data = data_balanced, ntree = 500)
 
-```{r}
-# # Features
-# x <- data %>%
-#   select(-BMI) %>%
-#   as.data.frame()
-# 
-# # Target variable
-# y <- data$BMI
-# 
-# # Training: 80%; Test: 20%
-# set.seed(2021)
-# inTrain <- createDataPartition(y, p = .80, list = FALSE)[,1]
-# 
-# x_train <- x[inTrain, ]
-# x_test  <- x[-inTrain, ]
-# 
-# y_train <- y[inTrain]
-# y_test  <- y[-inTrain]
-# 
-# # Define resampling control
-# control <- rfeControl(functions = rfFuncs, method = "cv", number = 5)
-# 
-# # Run RFE
-# result_rfe1 <- rfe(x = x_train, 
-#                    y = y_train, 
-#                    sizes = c(1:ncol(x_train)),
-#                    rfeControl = control)
-# 
-# # Print the results
-# print(result_rfe1)
-# 
-# # Print the selected features
-# print(predictors(result_rfe1))
-# 
-# # # Print the results visually
-# # ggplot(data = result_rfe1, aes(x = Variables, y = Accuracy)) + geom_point() + theme_bw()
-# # ggplot(data = result_rfe1, aes(x = Variables, y = Kappa)) + geom_point() + theme_bw()
+varImpPlot(Diabetes_vs_predictors)
 
 ```
 
+
+
+
 ```{r}
-selected_cols <- c("Age", "GenHlth", "HighBP", "Diabetes", "Sex", "BMI")
-data_subset <- data[selected_cols]
+hyperparameter_threshold <- 3000
+final_model_threshold <- 2000
+importance_values <- importance(Diabetes_vs_predictors)
+importance_df <- as.data.frame(importance_values)
+importance_df$Feature <- rownames(importance_df)
+print(importance_df)
 
-# Step 3: Split the dataset into features (X) and target variable (BMI)
-X <- data_subset[, !(names(data_subset) %in% "BMI")]
-y <- data_subset$BMI
+features_for_tuning <- subset(importance_df, MeanDecreaseGini > hyperparameter_threshold)$Feature
+features_for_final_model <- subset(importance_df, MeanDecreaseGini > final_model_threshold)$Feature
 
-# Step 4: Standardize the features
-X_scaled <- scale(X)
+# Define formulas
+formula_for_tuning <- as.formula(paste("Diabetes ~", paste(features_for_tuning, collapse = " + ")))
+formula_for_final_model <- as.formula(paste("Diabetes ~", paste(features_for_final_model, collapse = " + ")))
+```
 
-# Step 5: Perform k-fold cross-validation
-set.seed(123)  # Set seed for reproducibility
-folds <- createFolds(y, k = 5, list = TRUE)  # Create k folds
 
-# Initialize vectors to store cross-validation results
-cv_errors <- c()
-cv_lambdas <- c()
 
-for (fold in seq_along(folds)) {
-  # Prepare training and testing datasets for the fold
-  train_indices <- unlist(folds[setdiff(names(folds), fold)])
-  test_indices <- folds[[fold]]
+
+Dáta si rozdelíme na train test pomocou train/test splitu 80:20
+
+```{r}
+set.seed(123)
+
+data_balanced$Diabetes <- factor(data_balanced$Diabetes)
+
+partition <- createDataPartition(data_balanced$Diabetes, p=0.8, list=FALSE)
+
+training_data <- data_balanced[partition, ]
+testing_data <- data_balanced[-partition, ]
+
+cat("Trénovacia sada:\n")
+print(dim(training_data))
+cat("Distribúcia cieľovej premennej (Diabetes) v trénovacej sade:\n")
+print(table(training_data$Diabetes))
+
+cat("\nTestovacia sada:\n")
+print(dim(testing_data))
+cat("Distribúcia cieľovej premennej (Diabetes) v testovacej sade:\n")
+print(table(testing_data$Diabetes))
+
+```
+
+Výber podmnožiny na tuning hyperparametrov, vďaka nedostupnej výpočtovej sile sme sa rozhodli že vykonáme tuning hyperparametrov tak, že vyberieme náhodnú vzorku o veľkosti 10% z testovacej množiny, rozdelíme túto vzorku 80:20 na  tuning_training a tuning_validation, pričom modely budeme trénovať na tuning_training a validovať na tuning_validation. Následne vyberieme najlepšie parametre a natrénujeme náš model na training_data. 
+
+```{r}
+
+set.seed(123)
+
+unique(training_data$Diabetes)
+str(training_data$Diabetes)
+
+
+sample_indexes <- createDataPartition(training_data$Diabetes, p=0.1, list=FALSE) #10% z trénovacej
+tuning_subset  <- training_data[sample_indexes, ]
+
+cat("\n10% z train sady ktoré následne rozdeílme 80:20:\n")
+print(dim(tuning_subset))
+cat("Distribúcia cieľovej premennej (Diabetes) v tuningovej subset sade:\n")
+print(table(tuning_subset$Diabetes))
+
+tuning_train_indexes <- createDataPartition(training_data$Diabetes, p=0.8, list=FALSE) # 80:20 split z 10% trénovacej
+tuning_training <- tuning_subset[tuning_train_indexes, ]
+tuning_validation <- tuning_subset[-tuning_train_indexes, ]
+
+cat("\nTuningová sada train:\n")
+print(dim(tuning_training))
+cat("Distribúcia cieľovej premennej (Diabetes) v tuningovej trénovacej sade:\n")
+print(table(tuning_training$Diabetes))
+
+cat("\nTuningová sada validate:\n")
+print(dim(tuning_validation))
+cat("Distribúcia cieľovej premennej (Diabetes) v tuningovej validačnej sade:\n")
+print(table(tuning_validation$Diabetes))
+
+```
+Formula je zvolená z nezávislých premenných, ktoré mali najvačšiu koreláciu s Diabetes.
+
+```{r}
+cat("Formula for Hyperparameter Tuning:\n")
+formula_for_tuning
+cat("Formula for Final Model:\n")
+formula_for_final_model
+```
+
+
+### Tréning modelu pre získanie optímálneho kernelu, C, prípadne gammy pri radial/sigmoid alebo degree pri polynomiálnom kernely.
+
+- Pri gamma nízke hodnoty znamenajú, že vzdialené príklady majú veľký vplyv, zatiaľ čo vysoké hodnoty znamenajú, že iba príklady blízko rozhodovacej hranice majú veľký vplyv. V podstate to kontroluje, ako daleko sa významnosť jednotlivých príkladov šíri.
+
+- Parameter cost v metóde SVM je penalizačný parameter za nesprávne klasifikácie. Vyššie hodnoty costu posilňujú prísnejšiu klasifikačnú hranicu, čo vedie k menšiemu počtu chybných klasifikácií na úkor väčšej komplexity modelu. 
+
+- Parameter degree v metóde SVM s polynomiálnym kernelom určuje stupeň polynómu, ktorý sa použije na vytvorenie klasifikačnej hranice. Vyššie hodnoty stupňa polynómu zvyčajne vedú k zložitejším klasifikačným hraniciam, čo môže byť užitočné pri modelovaní komplexných dátových vzťahov. Naopak, nižšie hodnoty stupňa polynómu vedú k jednoduchším klasifikačným hraniciam, čo môže byť užitočné pri jednoduchších dátových vzorcoch a minimalizácii pretrénovania.
+
+```{r}
+
+tune_and_evaluate <- function(kernel_type, cost_range, gamma_range = NULL, degree_range = NULL) {
   
-  X_train <- X_scaled[train_indices, ]
-  y_train <- y[train_indices]
-  X_test <- X_scaled[test_indices, ]
-  y_test <- y[test_indices]
+  # Expand grid of hyperparameters based on kernel type
+  if (!is.null(gamma_range) && !is.null(degree_range)) {
+    hyperparameters <- expand.grid(kernel = kernel_type, cost = cost_range, gamma = gamma_range, degree = degree_range)
+  } else if (!is.null(gamma_range)) {
+    hyperparameters <- expand.grid(kernel = kernel_type, cost = cost_range, gamma = gamma_range)
+  } else if (!is.null(degree_range)) {
+    hyperparameters <- expand.grid(kernel = kernel_type, cost = cost_range, degree = degree_range)
+  } else {
+    hyperparameters <- expand.grid(kernel = kernel_type, cost = cost_range)
+  }
   
-  # Fit LASSO regression model using glmnet
-  cv_model <- cv.glmnet(X_train, y_train, alpha = 1, nfolds = 5)
   
-  # Extract lambda with minimum cross-validated error
-  best_lambda <- cv_model$lambda.min
+  #print(paste("Kernel Type:", kernel_type))
+  #print("Hyperparameters Grid:")
+  #print(hyperparameters)
   
-  # Predict on test set
-  y_pred <- predict(cv_model, s = best_lambda, newx = X_test)
+  # Tuning modela k-fold 10
+  set.seed(123)
+  tc <- tune.control(sampling = "fix", cross = 10)
+  tune_result <- tune(svm, formula_for_tuning, data = tuning_training, ranges = hyperparameters, tunecontrol = tc)
+
+  print("Best Model:")
+  print(tune_result$best.parameters)
+  # Train model s najlepšími parametrami
+  if(tune_result$best.parameters$kernel == "linear"){
+    best_model <- svm(formula, data = tuning_training,
+                     kernel = tune_result$best.parameters$kernel, 
+                     cost = tune_result$best.parameters$cost,
+                     probability = TRUE)
+    
+  }else if(tune_result$best.parameters$kernel == "radial"){
+    best_model <- svm(formula, data = tuning_training,
+                     kernel = tune_result$best.parameters$kernel,
+                     cost = tune_result$best.parameters$cost,
+                     gamma = tune_result$best.parameters$gamma,
+                     probability = TRUE)
+  }else if(tune_result$best.parameters$kernel == "polynomial"){
+    best_model <- svm(formula, data = tuning_training,
+                     kernel = tune_result$best.parameters$kernel,
+                     cost = tune_result$best.parameters$cost,
+                     degree = tune_result$best.parameters$degree,
+                     probability = TRUE)
+  }else{
+    best_model <- svm(formula, data = tuning_training,
+                     kernel = tune_result$best.parameters$kernel,
+                     cost = tune_result$best.parameters$cost,
+                     gamma = tune_result$best.parameters$gamma,
+                     probability = TRUE)
+  }
   
-  # Calculate mean squared error (MSE) for the fold
-  fold_error <- mean((y_pred - y_test)^2)
-  
-  # Store cross-validation results
-  cv_errors <- c(cv_errors, fold_error)
-  cv_lambdas <- c(cv_lambdas, best_lambda)
+  # Predict na validačnom malom datasete
+  predictions <- predict(best_model, newdata = tuning_validation, probability = TRUE)
+  probabilities <- attr(predictions, "probabilities")[,2]
+
+  # Vypočet roc auc
+  roc_result <- roc(tuning_validation$Diabetes, probabilities)
+  return(roc_result$auc)
 }
 
-# Step 6: Choose the lambda with the minimum average cross-validated error
-best_lambda <- mean(cv_lambdas[which.min(cv_errors)])
-
-# Step 7: Train the final LASSO regression model using the entire dataset
-final_model <- glmnet(X_scaled, y, alpha = 1)
-final_model_with_lambda <- glmnet(X_scaled, y, alpha = 1, lambda = best_lambda)
+cost_range <- 10^(seq(-1, 1, length = 3))
 
 
-y_pred_final <- predict(final_model_with_lambda, s = best_lambda, newx = X_scaled)
-final_rmse <- sqrt(mean((y_pred_final - y)^2))
-final_rmse
-# treba implementovat este R squared
-plot(cv_model)
+auc_linear <- tune_and_evaluate("linear", cost_range)
+auc_radial <- tune_and_evaluate("radial", cost_range, gamma_range = 10^(seq(-3, -1, length = 3)))
+auc_polynomial <- tune_and_evaluate("polynomial", cost_range, degree_range = c(2, 3, 4))
+auc_sigmoid <- tune_and_evaluate("sigmoid", cost_range, gamma_range = 10^(seq(-3, -1, length = 3)))
+
+
+
 ```
 
-Dostali sme skoro rovnake vysledky ako s linearnou regresiou. R squared je 0.076 co znamena ze prediktory su zodpovedne za 7.6 % variancie BMI, co je relativne malo.
 
-Priemern8 chyba predikcie a realnej hodnoty je 14.64678., co je vysoke. Takyto rozdiel v BMI vyrazne zmeni stav cloveka.
+
+```{r}
+cat("ROC AUC pre Linear Kernel:", auc_linear, "\n")
+cat("ROC AUC pre Radial Kernel:", auc_radial, "\n")
+cat("ROC AUC pre Polynomial Kernel:", auc_polynomial, "\n")
+cat("ROC AUC pre Sigmoid Kernel:", auc_sigmoid, "\n")
+```
+
+ROC AUC for Linear Kernel: 0.7962357 
+ROC AUC for Radial Kernel: 0.7924125 
+ROC AUC for Polynomial Kernel: 0.7871812 
+ROC AUC for Sigmoid Kernel: 0.7958438 
+
+Vidíme, že najlepšie hodnotenie ROC Area Under Curve má Lineárny kernel, čo je zaujímavé. Jeho parametre, ako môžeme vidieť vyššie boli cost 0.1, AUC hodnoty su ale podobné pri všetkých Kerneloch. Použijeme teda tieto parametre na tréning finálneho modelu. Pri nom budeme postupne uberať prediktory.
+
+Nakoniec z dôvodu obavy o pretrénovanie modelu (použitie viacerych prediktorov), sme sa rozhodli použit tie, ktoré sme použili pri hyperparameter tuningu. RF nám jednoznačne povedal, že najdôležitejšie sú BMI + GenHlth + Age. Na finálny model nebudeme používať kfold cv, kedže sme to už v priebehu tvorby finálneho modelu použili. 
+
+### Finálny model
+
+
+```{r}
+set.seed(123)
+
+final_model_svm <- svm(formula_for_tuning, data = training_data,
+                   kernel = "linear",
+                   cost = 0.1,
+                   probability = TRUE)
+summary(final_model_svm)
+
+```
+
+### Vyhodnotenie finálneho modelu
+
+```{r}
+predictions <- predict(final_model_svm, newdata = testing_data, probability = TRUE)
+probabilities <- attr(predictions, "probabilities")[,1]
+head(probabilities)
+roc_result <- roc(testing_data$Diabetes, probabilities)
+plot(roc_result, main = "ROC Curve")
+print(roc_result$auc)
+abline(a = 0, b = 1, lty = 2, col = "gray")
+```
+
+
+Optimálny cutoff cez youden, specificity + sens - 1, maximalizácia specificity a sensitivity. Ak je výsledok 1, máme optimálny výsledok. Hľadáme teda na krivke taký priesečník, ktorý nám tento súčet maximalizuje. 
+
+```{r}
+coords <- coords(roc_result, "best", best.method = "youden")
+optimal_cutoff <- coords$threshold
+optimal_sensitivity <- coords$sensitivity
+optimal_specificity <- coords$specificity
+print(optimal_sensitivity)
+print(optimal_specificity)
+plot(roc_result)
+points(coords$specificity, coords$sensitivity, pch = 19, col = 'red', cex = 0.7)
+legend("bottomright", pch = 19, col = 'red', legend = paste("Optimal cutoff:", round(optimal_cutoff, 4)))
+optimal_cutoff
+```
+
+
+
+
+```{r}
+#print(probabilities)
+predicted_classes <- ifelse(probabilities >optimal_cutoff, 1, 0)
+
+# Skutočné triedy
+actual_classes <- testing_data$Diabetes
+
+# Vytvorenie konfúznej matice
+caret::confusionMatrix(as_factor(predicted_classes), as_factor(actual_classes), positive = "1")
+
+```
+
+Vidíme, že dosahujeme mierne nadpriemerné výsledky.... Pozitívne je, ze dosahujeme vyššie hodnoty sensitivity , teda sa nám viac darí správne určovať diabetikov, čo môže byt v kontexte domény datasetu dôležité. Pre hypochodnerov nemáme dobré správy. Pri danej specificity sa nám môže stať, že ho mylne označíme ako diabetika aj keď je zdravý. Rozhodne to je ale lepšie ako pri Linearnej regresii aj ked tu porovnanie nieje relevantné, lebo sme pracovali s nevybalancovaným datasetom tam. Tu máme vďaka prevelance 0.5 dôkaz, že je vybalancovaný. 
+
+
+
+## Naive bayes
+
+
+Budeme rovnako pracovať s našim balancovaným datasetom, hyperparameter tuning sme si už vyskúšali. Tu použijeme ale inú formulu, a to formulu nezávislých premenných ktoré náš random forest označil, že majú efekt na Diabetes 
+
+```{r}
+set.seed(123)
+
+partition <- createDataPartition(data_balanced$Diabetes, p=0.9, list=FALSE)
+
+training_data_nb <- data_balanced[partition, ]
+testing_data_nb <- data_balanced[-partition, ]
+
+nb_model <- naiveBayes(formula_for_final_model, data = training_data_nb)
+
+summary(nb_model)
+```
+
+```{r}
+set.seed(123)
+probabilities_nb <- predict(nb_model, newdata = testing_data_nb, type = "raw")
+
+str(probabilities_nb)
+```
+```{r}
+roc_curve <- roc(testing_data_nb$Diabetes, probabilities_nb[, "1"])
+roc_curve$auc
+plot(roc_curve, main = "ROC Curve for Naive Bayes Classifier", col = "blue")
+abline(a = 0, b = 1, lty = 2, col = "gray")
+```
+```{r}
+coords <- coords(roc_curve, "best", best.method = "youden")
+optimal_cutoff_nb <- coords$threshold
+print(coords)
+plot(roc_curve)
+points(coords$specificity, coords$sensitivity, pch = 19, col = 'yellow', cex = 0.7)
+legend("bottomright", pch = 19, col = 'yellow', legend = paste("Optimal cutoff:", round(optimal_cutoff_nb, 4)))
+```
+```{r}
+predicted_classes <- ifelse(probabilities_nb[, "1"] > optimal_cutoff_nb, 1, 0)
+# Skutočné triedy
+actual_classes <- factor(testing_data_nb$Diabetes, levels = c("0", "1"))
+predicted_classes <- factor(predicted_classes, levels = c("0", "1"))
+# Vytvorenie konfúznej matice
+conf_matrix <- caret::confusionMatrix(predicted_classes, actual_classes, positive = "1")
+print(conf_matrix)
+```
+
+
+Výsledky sú porovnateľné, zmena na naive bayes, traintest split a zmena formule síce priniesla mierne zlepšenú accuracy, no to na druhej strane, zhoršila senzitivitu, čo je v kontexte nášho datasetu mierne nežiadúce, kedže chceme skôr zvyšit túto metriku.
+
+
+## LASSO regresný model model
+
+LASSO pripája k stratovej funkcii regulárny člen L1. Vykonáva výber premenných zmenšením koeficientov menej dôležitých prediktorov presne na nulu, čím ich účinne odstráni z modelu. LASSO je obzvlášť užitočný pri práci s vysokorozmernými súbormi údajov s mnohými prediktormi.
+
+```{r}
+set.seed(123) # for reproducibility
+train_index <- sample(1:nrow(data), 0.7 * nrow(data))
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+
+
+predictors  <- names(data)[names(data) != "BMI"]
+response <- "BMI"
+x_train <- as.matrix(train_data[, predictors])
+y_train <- train_data[, response]
+x_test <- as.matrix(test_data[, predictors])
+y_test <- test_data[, response]
+
+lasso_model <- glmnet(x_train, y_train, alpha = 1)
+plot(lasso_model, xvar = "lambda")
+
+lasso_pred <- predict(lasso_model, s = 0.2, newx = x_test)
+
+mse <- mean((lasso_pred - y_test)^2)
+rmse <- sqrt(mse)
+rsquared <- 1 - mse / var(y_test)
+
+# Summary table
+results <- data.frame(Method = "Lasso",
+                      Lambda = 0.2,
+                      MSE = mse,
+                      RMSE = rmse,
+                      R_squared = rsquared)
+results
+
+# Model Validation. Estimate the model on the testing data.
+lasso_test = glmnet(x_test, y_test, alpha = 1, lambda = 0.2)      # LASSO on test dataset
+lasso_test_coef = predict(lasso_test, type = "coefficients", s = 0.2) 
+lasso_test_coef
+
+```
+
+Ako vidime, Lasso vybral ine premenné ako prediktory : HighBP, HighChol, Cholcheck, Smoker... ako my pri lineárnej regresií.
+
+
+Parameter lambda v regresii LASSO riadi silu regularizácie. Výber optimálneho parametra lambda je rozhodujúci pre vyváženie kompromisu medzi skreslením a rozptylom v modeli. Príliš malá lambda môže viesť k nadmernému prispôsobeniu, zatiaľ čo príliš veľká lambda môže viesť k nedostatočnému prispôsobeniu.
+
+```{r}
+# Define predictors and response variable
+all_predictors <- names(data)[names(data) != "BMI"]
+response <- "BMI"
+
+# Split the data into train and test sets
+set.seed(123) # for reproducibility
+train_index <- createDataPartition(data$BMI, p = 0.7, list = FALSE)
+train_data <- data[train_index, ]
+test_data <- data[-train_index, ]
+
+x_train <- as.matrix(train_data[, all_predictors])
+y_train <- train_data[, response]
+x_test <- as.matrix(test_data[, all_predictors])
+y_test <- test_data[, response]
+
+num_folds <- 5  
+
+# Use k-fold cross-validation to select optimal lambda
+lasso_cv <- cv.glmnet(x_train, y_train, alpha = 1, nfolds = num_folds)
+
+
+```
+
+# lambda value that minimizes the error (MSE) 
+
+```{r}
+min_error_lambda <- lasso_cv$lambda.min
+min_error_lambda_index <- which(lasso_cv$lambda == min_error_lambda)
+min_error_lambda_coefficients <- coef(lasso_cv, s = min_error_lambda)
+```
+minimálna chyba lambda vedie k najnižšej chybe (napr. stredná kvadratická chyba, chyba krížového overovania) na validačnej množine alebo počas procesu výberu modelu.Počas procesu trénovania modelu sa zvyčajne testujú rôzne hodnoty lambda a výkonnosť modelu (napr. chyba) sa vyhodnocuje na samostatnej validačnej množine alebo prostredníctvom krížového overovania. Za optimálnu hodnotu lambda sa považuje hodnota lambda, ktorá prináša najnižšiu chybu na validačnej množine.
+
+
+```{r}
+# Select lambda one standard deviation away from the minimum error
+lambda_sd <- lasso_cv$lambda.1se
+lambda_sd_index <- which(lasso_cv$lambda == lambda_sd)
+lambda_sd_coefficients <- coef(lasso_cv, s = lambda_sd)
+
+```
+
+
+# Tento prístup zabezpečuje, že zvolená hodnota lambda nie je príliš optimistická a poskytuje       realistickejší odhad výkonnosti modelu na nepozorovaných údajoch.
+
+```{r}
+# Print minimum error Lambda and minimum error lambda coefficients
+cat("Minimum error Lambda:", min_error_lambda, "\n")
+cat("Minimum error lambda coefficients:\n")
+print(min_error_lambda_coefficients)
+
+```
+Minimálna chyba Lambda: Viac koeficientov je nenulových, čo znamená menej rozptýlené riešenie.
+Jedna štandardná odchýlka od Lambda: Niektoré koeficienty sú nulové, čo vedie k rozptýleniu riešenia.
+
+Minimálna chyba Lambda: 
+Model s väčším počtom prediktorov môže mať lepší predikčný výkon na trénovaných údajoch, ale môže byť náchylnejší na nadmerné prispôsobenie sa šumu.
+
+Jedna štandardná odchýlka Lambda: 
+Model s mänším počtom prediktorov  môže lepšie zovšeobecniť na nezistené údaje, ale môže obetovať určitú predikčnú presnosť v porovnaní s modelom s väčším počtom prediktorov.
+
+```{r}
+cat("Lambda one standard deviation away from minimum error:", lambda_sd, "\n")
+cat("Lambda one standard deviation away lambda coefficients:\n")
+print(lambda_sd_coefficients)
+```
+
+
+
+```{r}
+# Make predictions based on the testing data using minimum error lambda
+lasso_pred_min_error <- predict(lasso_cv, newx = x_test, s = min_error_lambda)
+
+# Make predictions based on the testing data using lambda one standard deviation away from minimum error
+lasso_pred_sd <- predict(lasso_cv, newx = x_test, s = lambda_sd)
+
+# Evaluate model performance for minimum error lambda
+mse_min_error <- mean((lasso_pred_min_error - y_test)^2)
+rmse_min_error <- sqrt(mse_min_error)
+rsquared_min_error <- 1 - mse_min_error / var(y_test)
+
+# Evaluate model performance for lambda one standard deviation away from minimum error
+mse_sd <- mean((lasso_pred_sd - y_test)^2)
+rmse_sd <- sqrt(mse_sd)
+rsquared_sd <- 1 - mse_sd / var(y_test)
+
+
+```
+
+
+```{r}
+# Summary table for k-fold cross-validation model
+results_kfold_sd <- data.frame(Method = "Lasso with k-fold CV 1 SD away from min err",
+                            Lambda = lambda_sd,
+                            MSE = mse_sd,
+                            RMSE = rmse,
+                            R_squared = rsquared_sd)
+
+results_min_error <- data.frame(Method = "Lasso with k-fold CV Optimal Lambda",
+                            Lambda = min_error_lambda,
+                            MSE = mse_min_error,
+                            RMSE = rmse_min_error,
+                            R_squared = rsquared_min_error)
+
+results_kfold_sd
+
+# Comparison table
+combined_results <- rbind(results, results_min_error,results_kfold_sd)
+
+# Display combined results
+print(combined_results)
+```
+
+
+
+Lasso s k-násobným CV Optimal Lambda má najnižšiu MSE a RMSE, čo znamená, že poskytuje najlepšiu celkovú zhodu s údajmi spomedzi troch metód.
+Hodnota R-squared pre Lasso s k-násobným CV Optimal Lambda je tiež najvyššia, čo naznačuje, že vysvetľuje väčšiu variabilitu cieľovej premennej v porovnaní s ostatnými dvoma metódami.
+Lasso s k-násobným CV 1 SD od min err má o niečo horšie výsledky ako optimálna lambda, ale stále lepšie ako pôvodné Lasso s lambda = 0,2.
+Celkovo sa zdá, že Lasso s k-násobným CV Optimal Lambda je na základe týchto hodnotiacich metrík najvýkonnejšou metódou spomedzi troch.
