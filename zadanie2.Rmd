@@ -948,6 +948,32 @@ actual_classes <- testing_data$Diabetes
 caret::confusionMatrix(as_factor(predicted_classes), as_factor(actual_classes), positive = "1")
 
 ```
+Confusion Matrix and Statistics
+
+          Reference
+Prediction    0    1
+         0 5123 1776
+         1 2822 6169
+                                          
+               Accuracy : 0.7106          
+                 95% CI : (0.7035, 0.7177)
+    No Information Rate : 0.5             
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.4213          
+                                          
+ Mcnemar's Test P-Value : < 2.2e-16       
+                                          
+            Sensitivity : 0.7765          
+            Specificity : 0.6448          
+         Pos Pred Value : 0.6861          
+         Neg Pred Value : 0.7426          
+             Prevalence : 0.5000          
+         Detection Rate : 0.3882          
+   Detection Prevalence : 0.5658          
+      Balanced Accuracy : 0.7106          
+                                          
+       'Positive' Class : 1     
 
 Vidíme, že dosahujeme mierne nadpriemerné výsledky.... Pozitívne je, ze dosahujeme vyššie hodnoty sensitivity , teda sa nám viac darí správne určovať diabetikov, čo môže byt v kontexte domény datasetu dôležité. Pre hypochodnerov nemáme dobré správy. Pri danej specificity sa nám môže stať, že ho mylne označíme ako diabetika aj keď je zdravý. Rozhodne to je ale lepšie ako pri Linearnej regresii aj ked tu porovnanie nieje relevantné, lebo sme pracovali s nevybalancovaným datasetom tam. Tu máme vďaka prevelance 0.5 dôkaz, že je vybalancovaný. 
 
@@ -1000,7 +1026,32 @@ predicted_classes <- factor(predicted_classes, levels = c("0", "1"))
 conf_matrix <- caret::confusionMatrix(predicted_classes, actual_classes, positive = "1")
 print(conf_matrix)
 ```
+Confusion Matrix and Statistics
 
+          Reference
+Prediction    0    1
+         0 2626  935
+         1 1346 3037
+                                          
+               Accuracy : 0.7129          
+                 95% CI : (0.7028, 0.7228)
+    No Information Rate : 0.5             
+    P-Value [Acc > NIR] : < 2.2e-16       
+                                          
+                  Kappa : 0.4257          
+                                          
+ Mcnemar's Test P-Value : < 2.2e-16       
+                                          
+            Sensitivity : 0.7646          
+            Specificity : 0.6611          
+         Pos Pred Value : 0.6929          
+         Neg Pred Value : 0.7374          
+             Prevalence : 0.5000          
+         Detection Rate : 0.3823          
+   Detection Prevalence : 0.5517          
+      Balanced Accuracy : 0.7129          
+                                          
+       'Positive' Class : 1        
 
 Výsledky sú porovnateľné, zmena na naive bayes, traintest split a zmena formule síce priniesla mierne zlepšenú accuracy, no to na druhej strane, zhoršila senzitivitu, čo je v kontexte nášho datasetu mierne nežiadúce, kedže chceme skôr zvyšit túto metriku.
 
