@@ -913,7 +913,7 @@ predictions <- predict(final_model_svm, newdata = testing_data, probability = TR
 probabilities <- attr(predictions, "probabilities")[,1]
 head(probabilities)
 roc_result <- roc(testing_data$Diabetes, probabilities)
-plot(roc_result, main = "ROC Curve")
+plot(roc_result, main = "ROC Curve SVM-final")
 print(roc_result$auc)
 abline(a = 0, b = 1, lty = 2, col = "gray")
 ```
